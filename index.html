@@ -77,6 +77,7 @@ a.btn{text-decoration:none;display:inline-block}
 .tbl td.r,.tbl th.r{text-align:right}
 .scrollx{overflow-x:auto;max-width:100%}
 .ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
+#cpOpts .chk{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
 .chkrow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .chkrow label{display:flex;gap:8px;align-items:center;font-size:15px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
 .menu-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;gap:12px;align-items:center;text-align:left;width:100%}
@@ -310,7 +311,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
-      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
       <div class="list" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
@@ -991,6 +992,49 @@ function verzetAppSheet(ids,oud,nieuw){
     <div class="full sub">Voorbeeld: “${esc(fillTpl("verzet",{naam:"Fam. de Vries",datum:nieuw,oud}))}”</div>`,{});
 }
 
+/* ---------- dagroute kopiëren (zonder prijzen) ---------- */
+function routeText(d,o){
+  const list=bOn(d).filter(b=>b.status!=="gedaan"&&(!o.mw||(o.mw==="zelf"?!b.medewerker_id||(user&&b.medewerker_id===user.id):b.medewerker_id===o.mw)));
+  const x=parse(d);const head="Route "+DNL[x.getDay()]+" "+x.getDate()+" "+MN[x.getMonth()]+" ("+list.length+" adressen)";
+  const groups=[];list.forEach(b=>{const k=S.kById[b.klant_id]||{};const w=k.woonplaats||"Overig";let g=groups.find(z=>z.w===w);if(!g){g={w,items:[]};groups.push(g)}g.items.push(b)});
+  let n=0;const out=[head];
+  groups.forEach(g=>{out.push("","— "+g.w.toUpperCase()+" —");g.items.forEach(b=>{const k=S.kById[b.klant_id]||{naam:"?"};n++;
+    out.push(`${n}. ${hm(b.tijd)?hm(b.tijd)+" ":""}${k.naam}`);
+    out.push("   "+[k.adres,[k.postcode,k.woonplaats].filter(Boolean).join(" ")].filter(Boolean).join(", "));
+    if(o.tel&&k.telefoon)out.push("   Tel: "+k.telefoon);
+    if(o.not&&k.notitie)out.push("   Let op: "+k.notitie);
+    if(o.not&&b.notitie)out.push("   Deze keer: "+b.notitie);
+    if(o.ond&&Array.isArray(k.onderdelen)&&k.onderdelen.length)out.push("   Doen: "+k.onderdelen.map(z=>z.naam).filter(Boolean).join(", "));
+    if(o.maps)out.push("   "+mapsUrl(k));
+  })});
+  if(o.route&&list.length){const pts=list.map(b=>{const k=S.kById[b.klant_id]||{};return [k.adres,k.postcode,k.woonplaats].filter(Boolean).join(", ")});out.push("","Hele route in Maps:","https://www.google.com/maps/dir/?api=1&travelmode=driving&destination="+encodeURIComponent(pts[pts.length-1])+(pts.length>1?"&waypoints="+encodeURIComponent(pts.slice(0,-1).slice(0,9).join("|")):""))}
+  return list.length?out.join("\n"):"";
+}
+function copySheet(d){
+  const others=S.mws.filter(m=>m.user_id!==(user&&user.id));
+  const hasMw=bOn(d).some(b=>b.medewerker_id&&!(user&&b.medewerker_id===user.id));
+  sheet("Dagroute kopiëren",`
+    <div class="full sub">Zonder prijzen. Plak de tekst in Notities of stuur hem via WhatsApp naar je medewerker.</div>
+    ${hasMw&&others.length?`<label class="full">Voor wie<select id="cp-mw"><option value="">Alle adressen</option><option value="zelf">Alleen die van mij</option>${others.map(m=>`<option value="${m.user_id}">Alleen ${esc(m.naam)}</option>`).join("")}</select></label>`:""}
+    <div class="full chips" id="cpOpts">
+      <label class="chk"><input type="checkbox" id="cp-tel" checked> Telefoonnummers</label>
+      <label class="chk"><input type="checkbox" id="cp-not" checked> Notities</label>
+      <label class="chk"><input type="checkbox" id="cp-ond"> Wat er gewassen moet worden</label>
+      <label class="chk"><input type="checkbox" id="cp-maps"> Kaartlink per adres</label>
+      <label class="chk"><input type="checkbox" id="cp-route" checked> Link hele route</label>
+    </div>
+    <label class="full">Tekst<textarea id="cp-txt" rows="12" readonly style="font-family:ui-monospace,Menlo,monospace;font-size:13px"></textarea></label>
+    <div class="full row-acts"><button class="btn" type="button" id="cpCopy">📋 Kopiëren</button>${navigator.share?`<button class="btn ghost" type="button" id="cpShare">Delen…</button>`:""}<button class="btn wa" type="button" id="cpWa">💬 Via WhatsApp</button></div>
+  `,{extra:()=>{
+    const opts=()=>({tel:$("#cp-tel").checked,not:$("#cp-not").checked,ond:$("#cp-ond").checked,maps:$("#cp-maps").checked,route:$("#cp-route").checked,mw:$("#cp-mw")?$("#cp-mw").value:""});
+    const upd=()=>{$("#cp-txt").value=routeText(d,opts())||"Geen openstaande adressen op deze dag."};
+    upd();$("#cpOpts").addEventListener("change",upd);if($("#cp-mw"))$("#cp-mw").onchange=upd;
+    $("#cpCopy").onclick=async()=>{const t=$("#cp-txt").value;try{await navigator.clipboard.writeText(t);toast("Gekopieerd. Plak het in Notities of WhatsApp.")}catch(e){const ta=$("#cp-txt");ta.removeAttribute("readonly");ta.focus();ta.select();ta.setSelectionRange(0,t.length);try{document.execCommand("copy");toast("Gekopieerd")}catch(x){toast("Selecteer de tekst en kies Kopieer")}ta.setAttribute("readonly","")}};
+    const sh=$("#cpShare");if(sh)sh.onclick=async()=>{try{await navigator.share({text:$("#cp-txt").value})}catch(e){}};
+    $("#cpWa").onclick=()=>{window.open("https://wa.me/?text="+encodeURIComponent($("#cp-txt").value),"_blank","noopener")};
+  }});
+}
+
 /* ---------- dagafsluiting ---------- */
 function dagSheet(d){
   const dag=S.beurten.filter(b=>b.datum===d);
@@ -1275,6 +1319,7 @@ document.addEventListener("click",async e=>{
   if(t.id==="remindBtn"){remindSheet(sel);return}
   if(t.id==="shiftBtn"){shiftSheet(sel);return}
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
+  if(t.id==="copyDayBtn"){copySheet(sel);return}
   if(t.id==="meerBack"){meerMode="";renderMeer();return}
   if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
   if(d.foto){const k=S.kById[d.foto];if(k&&k.foto_pad)fotoSheet(k.foto_pad,k.naam);return}
