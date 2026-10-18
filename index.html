@@ -56,6 +56,10 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;g
 .btn.danger{background:var(--bad-bg);color:var(--bad)}
 .btn.ok{background:var(--ok);color:#fff}
 .btn.link{background:none;color:var(--accent);padding:4px 0}
+a.btn{text-decoration:none;display:inline-block}
+.btn.wa{background:#1f9e55;color:#fff}
+.tplbox{display:flex;flex-direction:column;gap:6px}
+.tplbox textarea{min-height:84px}
 .iconbtn{background:var(--surface2);border:0;border-radius:6px;width:30px;height:30px;display:inline-grid;place-items:center;font-weight:700}
 
 /* login & setup */
@@ -282,7 +286,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
-      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
       <div class="list" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
@@ -376,6 +380,35 @@ const weekNr=s=>{const d=parse(s);const t=new Date(Date.UTC(d.getFullYear(),d.ge
 const addMin=(t,m)=>{let[h,mi]=(t||"08:00").split(":").map(Number);mi+=m;h+=Math.floor(mi/60);mi=((mi%60)+60)%60;return pad(Math.min(h,23))+":"+pad(mi)};
 const mapsUrl=k=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([k.adres,k.postcode,k.woonplaats].filter(Boolean).join(", "));
 const telHref=t=>"tel:"+String(t||"").replace(/[^\d+]/g,"");
+
+/* ---------- WhatsApp ---------- */
+// 06-12345678 → 31612345678 ; +32 … → 32… ; 0032 … → 32…
+function waNum(t){
+  let s=String(t||"").trim().replace(/[^\d+]/g,"");
+  if(s.startsWith("+"))s=s.slice(1);else if(s.startsWith("00"))s=s.slice(2);else if(s.startsWith("0"))s="31"+s.slice(1);
+  return s.length>=10?s:"";
+}
+const DEF_TPL={
+  herinnering:"Hoi {naam}, {wanneer} ({datum}) kom ik rond {tijd} uw ramen wassen. Tot dan! Groet, Zijlstra Schoonmaak",
+  beurt:"Hoi {naam}, het is weer tijd voor de glazenwasser. Schikt het als ik op {datum} langskom? Groet, Zijlstra Schoonmaak",
+  betaling:"Hoi {naam}, voor de wasbeurt van {datum} staat nog {bedrag} open. Wilt u dit overmaken of contant klaarleggen? Dank u wel! Groet, Zijlstra Schoonmaak"
+};
+const TPL_LABEL={herinnering:"Herinnering afspraak",beurt:"Aan de beurt",betaling:"Betaalherinnering"};
+function getTpl(k){try{const o=JSON.parse(localStorage.getItem("zs-tpl")||"{}");if(o[k])return o[k]}catch(e){}return DEF_TPL[k]}
+function setTpl(o){try{localStorage.setItem("zs-tpl",JSON.stringify(o))}catch(e){}}
+function wanneer(d){const t=today();if(d===t)return"vandaag";if(d===addDays(t,1))return"morgen";if(d===addDays(t,2))return"overmorgen";return"op "+DNL[parse(d).getDay()]}
+function longDate(d){const x=parse(d);return DNL[x.getDay()]+" "+x.getDate()+" "+["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"][x.getMonth()]}
+function fillTpl(k,v){
+  const voornaam=String(v.naam||"").replace(/^(fam\.?|familie|dhr\.?|mevr\.?|mw\.?)\s+/i,"");
+  return getTpl(k).replace(/\{naam\}/g,voornaam).replace(/\{datum\}/g,v.datum?longDate(v.datum):"").replace(/\{wanneer\}/g,v.datum?wanneer(v.datum):"").replace(/\{tijd\}/g,v.tijd||"").replace(/\{bedrag\}/g,v.bedrag!=null?euro(v.bedrag):"").replace(/\s+\(\)/g,"").replace(/rond\s+uw/,"uw");
+}
+function waLink(tel,text){const n=waNum(tel);return n?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
+// knop: soort = herinnering|beurt|betaling, mark = "b:<beurtId>" of "k:<klantId>"
+function waBtn(k,soort,vars,mark,label){
+  const href=waLink(k&&k.telefoon,fillTpl(soort,{naam:k&&k.naam,...vars}));
+  if(!href)return `<span class="pill p-plain" title="Geen geldig 06-nummer">geen nummer</span>`;
+  return `<a class="btn wa small" href="${href}" target="_blank" rel="noopener" data-wa-mark="${esc(mark||"")}">${esc(label||"💬 App")}</a>`;
+}
 
 /* ---------- configuratie ---------- */
 function getCfg(){
@@ -500,6 +533,9 @@ function renderDay(){
     mb.href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination="+encodeURIComponent(dest)+(way.length?"&waypoints="+encodeURIComponent(way.join("|")):"");
     mb.hidden=false;
   }else mb.hidden=true;
+  const rem=list.filter(b=>b.status!=="gedaan"&&b.datum>=t);
+  const rb=$("#remindBtn");rb.hidden=!rem.length;
+  if(rem.length){const n=rem.filter(b=>!b.herinnering_op).length;rb.textContent=n?`💬 Herinneringen (${n})`:"💬 Herinneringen ✓"}
   if(!list.length){$("#dayList").innerHTML=`<div class="empty">Geen beurten op deze dag.<br><br><button class="btn small" type="button" data-new-beurt="${sel}">+ Beurt op ${nice(sel)}</button> <button class="btn ghost small" type="button" data-tab="routes">Plan via Routes</button></div>`;return}
   const groups=[];list.forEach(b=>{const k=S.kById[b.klant_id];const w=(k&&k.woonplaats)||"Onbekend";let g=groups.find(x=>x.w===w);if(!g){g={w,items:[]};groups.push(g)}g.items.push(b)});
   $("#dayList").innerHTML=groups.map(g=>`<div class="group-h"><span>${esc(g.w)}</span><span>${g.items.length} adr. · ${euro(sum(g.items))}</span></div>`+g.items.map((b)=>beurtCard(b,list)).join("")).join("");
@@ -519,9 +555,10 @@ function beurtCard(b,list){
       ${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}
       ${b.notitie?`<div class="note">${esc(b.notitie)}</div>`:""}
       <div class="row-acts">
-        ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>`}
+        ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>${b.betaald?"":waBtn(k,"betaling",{datum:b.datum,bedrag:b.bedrag},"","💬 Betaalherinnering")}`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>${b.datum>=t?waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,b.herinnering_op?"💬 Opnieuw":"💬 Herinnering"):""}`}
         <button class="btn ghost small" type="button" data-edit-beurt="${b.id}">Wijzig</button>
       </div>
+      ${!done&&b.herinnering_op?`<div class="sub" style="margin-top:4px">✓ Geappt op ${nice(String(b.herinnering_op).slice(0,10))}</div>`:""}
     </div>
     <div class="side"><span class="price">${euro(b.bedrag)}</span>${st}</div>
   </div>`;
@@ -567,7 +604,7 @@ function renderRoutes(){
   h+=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).map(([w,items])=>{
     items.sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
     return `<div class="group-h"><span>${esc(w)} · ${items.length} klanten · ${euro(items.reduce((t,k)=>t+(+k.prijs||0),0))}</span><button class="btn small" type="button" data-plan-plaats="${esc(w)}">Plan alle op ${nice(datum)}</button></div>`+
-      items.map(k=>{const s=kStatus(k);return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.adres||"")}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div><div class="meta"><span class="pill ${s.cls}">${esc(s.txt)}</span><button class="btn ghost small" type="button" data-plan-klant="${k.id}">Plan in</button></div></div>`}).join("");
+      items.map(k=>{const s=kStatus(k);const ga=k.geappt_op&&String(k.geappt_op).slice(0,10)>=addDays(t,-14);return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.adres||"")}${ga?" · ✓ geappt "+nice(String(k.geappt_op).slice(0,10)):""}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div><div class="meta"><span class="pill ${s.cls}">${esc(s.txt)}</span><div class="row-acts" style="margin:0">${waBtn(k,"beurt",{datum},"k:"+k.id,"💬 Vraag")}<button class="btn ghost small" type="button" data-plan-klant="${k.id}">Plan in</button></div></div></div>`}).join("");
   }).join("");
   $("#routeList").innerHTML=h;
 }
@@ -580,7 +617,7 @@ function renderPay(){
   let h="";
   if(payMode==="open"){
     h=open.length?open.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};const d=daysBetween(b.datum,t);
-      return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">Gewassen ${nice(b.datum)} · ${esc(k.woonplaats||"")}${k.telefoon?` · <a href="${telHref(k.telefoon)}">${esc(k.telefoon)}</a>`:""}</div></div><div class="meta"><strong>${euro(b.bedrag)}</strong><span class="pill ${d>30?"p-bad":d>14?"p-warn":"p-plain"}">${d} dagen</span><button class="btn small" type="button" data-paid="${b.id}">€ Betaald</button></div></div>`}).join(""):`<div class="empty">Alles is betaald. 🎉</div>`;
+      return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">Gewassen ${nice(b.datum)} · ${esc(k.woonplaats||"")}${k.telefoon?` · <a href="${telHref(k.telefoon)}">${esc(k.telefoon)}</a>`:""}</div></div><div class="meta"><strong>${euro(b.bedrag)}</strong><span class="pill ${d>30?"p-bad":d>14?"p-warn":"p-plain"}">${d} dagen</span><div class="row-acts" style="margin:0">${waBtn(k,"betaling",{datum:b.datum,bedrag:b.bedrag},"","💬 Herinner")}<button class="btn small" type="button" data-paid="${b.id}">€ Betaald</button></div></div></div>`}).join(""):`<div class="empty">Alles is betaald. 🎉</div>`;
   }else if(payMode==="klant"){
     const per={};open.forEach(b=>{(per[b.klant_id]=per[b.klant_id]||[]).push(b)});
     const rows=Object.entries(per).sort((a,b)=>sum(b[1])-sum(a[1]));
@@ -627,7 +664,9 @@ function klantForm(id){
     <div class="full chips" id="noteChips">${NOTE_CHIPS.map(c=>`<button type="button" data-chip="${esc(c)}">+ ${esc(c)}</button>`).join("")}</div>
     <label class="full chk"><input id="f-act" type="checkbox" name="actief" ${k.actief?"checked":""}> Actieve klant (zet uit als iemand stopt)</label>
     ${id?`<div class="full"><div class="sub" style="margin-bottom:6px">Status: <span class="pill ${s.cls}">${esc(s.txt)}</span>${k.telefoon?` · <a href="${telHref(k.telefoon)}">Bel ${esc(k.telefoon)}</a>`:""} · <a href="${mapsUrl(k)}" target="_blank" rel="noopener">Kaart</a></div>
-      ${k.volgende_beurt?"":`<button class="btn yellow small" type="button" id="planNext">Plan beurt op ${nice(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)}</button>`}</div>
+      <div class="row-acts">${k.volgende_beurt?"":`<button class="btn yellow small" type="button" id="planNext">Plan beurt op ${nice(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)}</button>`}
+      ${waBtn(k,"beurt",{datum:k.volgende_beurt||(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)},"k:"+k.id,"💬 App klant")}
+      <button class="btn ghost small" type="button" data-tpl>Berichtteksten</button></div></div>
       <div class="full"><div class="sub">Laatste beurten</div><div class="hist">${hist.length?hist.map(b=>`<div><span>${nice(b.datum)}</span><span>${b.status==="gedaan"?(b.betaald?"betaald":"open"):b.status}</span><span>${euro(b.bedrag)}</span></div>`).join(""):"<div>Nog geen beurten</div>"}</div></div>`:""}
   `,{
     onSave:async fd=>{
@@ -722,6 +761,26 @@ function paySheet(ids,title){
   {extra:close=>{document.querySelectorAll("[data-pw]").forEach(x=>x.onclick=async()=>{close();await run(sb.from("beurten").update({betaald:true,betaald_op:today(),betaalwijze:x.dataset.pw}).in("id",ids),"Betaling genoteerd")})}});
 }
 
+function remindSheet(datum){
+  const list=bOn(datum).filter(b=>b.status!=="gedaan");
+  const rows=()=>list.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};const x=S.beurten.find(y=>y.id===b.id)||b;
+    return `<div class="kl"><div class="main"><div class="name">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="sub">${esc(k.telefoon||"geen telefoonnummer")}${x.herinnering_op?" · ✓ geappt":""}</div></div><div class="meta">${waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,x.herinnering_op?"Opnieuw":"💬 Stuur")}</div></div>`}).join("");
+  sheet("Herinneringen "+nice(datum),`
+    <div class="full sub">Tik per klant op <strong>Stuur</strong>. WhatsApp opent met het bericht al ingevuld; jij tikt daar op verzenden en komt daarna terug in deze app.</div>
+    <div class="full list" id="remRows">${rows()}</div>
+    <div class="full sub">Voorbeeld: “${esc(fillTpl("herinnering",{naam:"Fam. de Vries",datum,tijd:"09:00"}))}”</div>
+    <div class="full"><button class="btn ghost small" type="button" data-tpl>Berichtteksten aanpassen</button></div>
+  `,{});
+}
+function tplSheet(){
+  sheet("Berichtteksten",`
+    <div class="full sub">Je kunt deze woorden gebruiken; de app vult ze zelf in: <strong>{naam}</strong>, <strong>{datum}</strong>, <strong>{wanneer}</strong> (vandaag/morgen), <strong>{tijd}</strong>, <strong>{bedrag}</strong>. De teksten worden op dit apparaat bewaard.</div>
+    ${Object.keys(DEF_TPL).map(k=>`<label class="full tplbox">${esc(TPL_LABEL[k])}<textarea id="tpl-${k}" name="${k}" rows="4">${esc(getTpl(k))}</textarea></label>`).join("")}
+    <div class="full"><button class="btn link" type="button" id="tplReset">Standaardteksten terugzetten</button></div>
+  `,{onSave:async fd=>{const o={};Object.keys(DEF_TPL).forEach(k=>{const v=(fd[k]||"").trim();if(v&&v!==DEF_TPL[k])o[k]=v});setTpl(o);toast("Teksten opgeslagen");render();return true},
+    extra:()=>{$("#tplReset").onclick=()=>{Object.keys(DEF_TPL).forEach(k=>$("#tpl-"+k).value=DEF_TPL[k])}}});
+}
+
 /* ---------- acties ---------- */
 async function swap(id,dir){
   const b=S.beurten.find(x=>x.id===id);const list=bOn(b.datum);const i=list.indexOf(b),j=i+dir;
@@ -761,6 +820,8 @@ document.addEventListener("click",async e=>{
   const t=e.target.closest("button,[data-edit-beurt],[data-goto]");if(!t)return;
   const d=t.dataset;
   if(d.logout!==undefined){await sb.auth.signOut();return}
+  if(t.id==="remindBtn"){remindSheet(sel);return}
+  if(d.tpl!==undefined){$("#sheetRoot").innerHTML="";tplSheet();return}
   if(d.tab){tab=d.tab;setTab();window.scrollTo(0,0);return}
   if(d.mode){mode=d.mode;setTab();return}
   if(d.day){sel=d.day;renderPlanning();return}
@@ -782,6 +843,15 @@ document.addEventListener("click",async e=>{
     const items=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon&&(k.woonplaats||"Onbekend")===d.planPlaats).sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
     await planMany(items,$("#rDatum").value||addDays(today(),1));return}
 });
+// WhatsApp-link: link opent WhatsApp; wij noteren dat er geappt is
+document.addEventListener("click",e=>{
+  const a=e.target.closest&&e.target.closest("a[data-wa-mark]");if(!a)return;
+  const m=a.dataset.waMark||"";const now=new Date().toISOString();
+  if(m.startsWith("b:")){const id=m.slice(2);const b=S.beurten.find(x=>x.id===id);if(b){b.herinnering_op=now}sb.from("beurten").update({herinnering_op:now}).eq("id",id).then(()=>{})}
+  else if(m.startsWith("k:")){const id=m.slice(2);const k=S.kById[id];if(k){k.geappt_op=now}sb.from("klanten").update({geappt_op:now}).eq("id",id).then(()=>{})}
+  else return;
+  setTimeout(()=>{a.textContent="✓ Geappt";a.classList.remove("wa");a.classList.add("ghost");if(!$("#sheetRoot").innerHTML)render();else{renderSummary()}},400);
+},true);
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape"&&$("#sheetRoot").innerHTML){$("#sheetRoot").innerHTML="";return}
   if(e.key==="Enter"&&e.target.matches&&e.target.matches(".mini[data-edit-beurt]"))beurtForm(e.target.dataset.editBeurt);
