@@ -389,7 +389,7 @@ nav.tabs svg{width:22px;height:22px}
       <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
       <div><h1>Mijn route</h1><small id="crewWho"></small></div>
     </div>
-    <div class="hdr-acts"><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
+    <div class="hdr-acts"><button class="btn ghost small" type="button" id="crewAgenda">📅 Agenda</button><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
   </div>
 </header>
 <div class="stripe" aria-hidden="true"></div>
@@ -1162,13 +1162,14 @@ async function maakFactuur(klantId,beurtIds){
 }
 
 /* ---------- Meer ---------- */
-const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
 function renderMeer(){
   $("#meerBack").hidden=!meerMode;
   const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
   if(!meerMode){$("#meerBody").innerHTML=MEER.map(([k,ic,t,d])=>`<button class="menu-card" type="button" data-meer="${k}"><span class="ic">${ic}</span><span><div class="t">${t}</div><div class="sub">${d}</div></span></button>`).join("");return}
   if(meerMode==="omzet")return renderOmzet();
   if(meerMode==="btw")return renderBtw();
+  if(meerMode==="agenda")return renderAgenda($("#meerBody"));
   if(meerMode==="bedrijf")return renderBedrijf();
   if(meerMode==="medewerkers")return renderMws();
   if(meerMode==="import")return renderImport();
@@ -1241,6 +1242,34 @@ async function renderBtw(){
   $("#bJaar").onchange=e=>{btwJaar=+e.target.value;renderBtw()};
   $$("[data-st]").forEach(x=>x.onclick=()=>{btwStelsel=x.dataset.st;renderBtw()});
   $$("[data-btwcopy]").forEach(x=>x.onclick=async()=>{const q=Q[+x.dataset.btwcopy-1];const txt=`Btw Q${q.q} ${Y} (${qName(q.q)}) – ${I.bedrijfsnaam||""}\nAantal beurten: ${q.n}\nOmzet excl. btw: ${euro(q.ex)}\nBtw ${t}%: ${euro(q.btw)}\nOmzet incl. btw: ${euro(q.inc)}\nStelsel: ${btwStelsel==="kas"?"kasstelsel (datum betaling)":"factuurstelsel (datum beurt)"}\nOntvangen per betaalwijze: ${Object.entries(q.per).map(([w,v])=>w+" "+euro(v)).join(", ")}`;try{await navigator.clipboard.writeText(txt);toast("Gekopieerd")}catch(e){sheet("Btw Q"+q.q,`<label class="full">Tekst<textarea rows="8" readonly>${esc(txt)}</textarea></label>`,{})}});
+}
+/* ---------- agenda-abonnement ---------- */
+async function renderAgenda(box,opts={}){
+  box.innerHTML=`<div class="empty">Agendalink ophalen…</div>`;
+  const {data,error}=await sb.rpc("mijn_agendalink",opts);
+  if(error){box.innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
+  const cfg=getCfg();const host=cfg.url.replace(/^https?:\/\//,"");
+  const https_=`${cfg.url}/functions/v1/agenda?t=${data.token}`,webcal=`webcal://${host}/functions/v1/agenda?t=${data.token}`;
+  const beh=S.rol==="beheerder";
+  box.innerHTML=`
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div><strong>Op je iPhone</strong></div>
+      <div class="row-acts"><a class="btn" href="${webcal}">📅 Abonneer in Agenda</a></div>
+      <div class="sub">Tik op de knop en kies <em>Abonneer</em>. Werkt dat niet: kopieer de link hieronder en ga naar <strong>Instellingen → Agenda → Accounts → Voeg account toe → Andere → Voeg agenda-abonnement toe</strong> en plak de link.</div>
+      <label class="sub" for="agLink">Jouw geheime agendalink</label>
+      <div class="filters"><input id="agLink" class="search" readonly value="${esc(https_)}" style="flex:1;min-width:0"><button class="btn ghost small" type="button" id="agCopy">Kopieer</button></div>
+      ${beh?`<label class="chk"><input type="checkbox" id="agPrijs" ${data.met_prijzen?"checked":""}> Bedragen tonen in de agenda</label>`:""}
+      <div class="sub">${beh?"Je ziet alle beurten, ook die van medewerkers.":"Je ziet alleen je eigen adressen, zonder bedragen."} Wijzigingen in de app verschijnen meestal binnen 15 minuten tot een uur in je agenda. Andersom werkt het niet: plan en verplaats altijd in de app.</div>
+      <div class="sub">Op Google Agenda of Outlook werkt dezelfde link: kies daar “Agenda toevoegen via URL”.</div>
+    </div>
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div><strong>Link vernieuwen</strong></div>
+      <div class="sub">Iedereen met deze link kan je agenda zien. Heb je hem per ongeluk gedeeld of je telefoon verloren? Maak een nieuwe link; de oude werkt dan niet meer en je moet je opnieuw abonneren.</div>
+      <div><button class="btn danger small" type="button" id="agNew">Nieuwe link maken</button></div>
+    </div>`;
+  $("#agCopy").onclick=async()=>{try{await navigator.clipboard.writeText(https_);toast("Link gekopieerd")}catch(e){const i=$("#agLink");i.focus();i.select();i.setSelectionRange(0,https_.length);toast("Selecteer en kopieer de link")}};
+  const ap=$("#agPrijs");if(ap)ap.onchange=()=>renderAgenda(box,{p_prijzen:ap.checked});
+  $("#agNew").onclick=()=>{const b=$("#agNew");if(b.dataset.sure){renderAgenda(box,{p_vernieuw:true}).then(()=>toast("Nieuwe link gemaakt. Abonneer opnieuw."));return}b.dataset.sure="1";b.textContent="Zeker weten? Tik nog een keer"};
 }
 function renderBedrijf(){
   const I=S.inst||{};const ro=S.rol!=="beheerder";
@@ -1401,6 +1430,7 @@ document.addEventListener("click",async e=>{
   if(t.id==="shiftBtn"){shiftSheet(sel);return}
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
   if(t.id==="copyDayBtn"){copySheet(sel);return}
+  if(t.id==="crewAgenda"){sheet("Agenda op je telefoon",`<div class="full list" id="agBox"></div>`,{});renderAgenda($("#agBox"));return}
   if(t.id==="meerBack"){meerMode="";renderMeer();return}
   if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
   if(d.foto){const k=S.kById[d.foto];if(k&&k.foto_pad)fotoSheet(k.foto_pad,k.naam);return}
