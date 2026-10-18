@@ -77,6 +77,7 @@ a.btn{text-decoration:none;display:inline-block}
 .tbl td.r,.tbl th.r{text-align:right}
 .scrollx{overflow-x:auto;max-width:100%}
 .ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
+.mchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px!important;text-transform:none!important;letter-spacing:0!important;color:var(--ink)!important;font-weight:500!important}
 #cpOpts .chk{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
 .chkrow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
 .chkrow label{display:flex;gap:8px;align-items:center;font-size:15px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
@@ -551,16 +552,40 @@ function kStatus(k){
   if(!k.actief)return{txt:"Gestopt",cls:"p-plain",late:false};
   if(k.volgende_beurt)return{txt:(k.volgende_beurt<t?"Niet afgerond ":"Gepland ")+nice(k.volgende_beurt),cls:k.volgende_beurt<t?"p-bad":"p-ok",late:false};
   if(k.aan_de_beurt<t)return{txt:"Achterstallig sinds "+nice(k.aan_de_beurt),cls:"p-bad",late:true};
+  if(k.aan_de_beurt>addDays(t,14)&&inPauze(k,t))return{txt:(arr(k.vaste_maanden).length?"Volgende in ":"Winterstop, weer vanaf ")+nice(k.aan_de_beurt),cls:"p-plain",late:false};
   if(k.aan_de_beurt<=addDays(t,14))return{txt:"Aan de beurt "+nice(k.aan_de_beurt),cls:"p-warn",late:false};
   return{txt:"Volgende rond "+nice(k.aan_de_beurt),cls:"p-plain",late:false};
 }
 const sum=l=>l.reduce((t,b)=>t+(Number(b.bedrag)||0),0);
+// ---- frequentie: elke X weken (met winterstop) of vaste maanden; nooit op zondag ----
+const MNL=["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"];
+const arr=a=>Array.isArray(a)?a.map(Number):[];
+const firstOfMonth=(y,m)=>y+"-"+pad(m)+"-01"; // m = 1..12
+function addMonths(d,n){const x=parse(d);return new Date(x.getFullYear(),x.getMonth()+n,1,12)}
+function noSunday(d){return parse(d).getDay()===0?addDays(d,1):d}
+function volgendeDatum(d,k){
+  const vaste=arr(k.vaste_maanden),pauze=arr(k.pauze_maanden);
+  if(vaste.length){const dag=parse(d).getDate();for(let i=1;i<=24;i++){const c=addMonths(d,i);if(vaste.includes(c.getMonth()+1)){const last=new Date(c.getFullYear(),c.getMonth()+1,0).getDate();return noSunday(iso(new Date(c.getFullYear(),c.getMonth(),Math.min(dag,last),12)))}}}
+  let n=addDays(d,(+k.interval_weken||6)*7);
+  if(pauze.length&&pauze.includes(parse(n).getMonth()+1)){for(let i=1;i<=12;i++){const c=addMonths(n,i);if(!pauze.includes(c.getMonth()+1)){n=iso(c);break}}}
+  return noSunday(n);
+}
+function eerstMogelijk(d,k){ // vandaag, of het begin van de eerstvolgende toegestane maand
+  const vaste=arr(k.vaste_maanden),pauze=arr(k.pauze_maanden),m=parse(d).getMonth()+1;
+  if(vaste.length&&!vaste.includes(m)){for(let i=1;i<=12;i++){const c=addMonths(d,i);if(vaste.includes(c.getMonth()+1))return noSunday(iso(c))}}
+  if(pauze.length&&pauze.includes(m)){for(let i=1;i<=12;i++){const c=addMonths(d,i);if(!pauze.includes(c.getMonth()+1))return noSunday(iso(c))}}
+  return d;
+}
+function freqText(k){const v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);
+  if(v.length)return v.length+"× per jaar ("+v.slice().sort((a,b)=>a-b).map(m=>MN[m-1]).join(", ")+")";
+  return "Elke "+(k.interval_weken||6)+" weken"+(p.length?" · winterstop "+p.map(m=>MN[m-1]).join(", "):"");}
+function inPauze(k,d){const m=parse(d).getMonth()+1,v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);return v.length?!v.includes(m):p.includes(m)}
 // laatste/volgende beurt, aan de beurt en openstaand per klant (berekend uit de geladen beurten)
 function deriveKlant(k){
   const mine=S.beurten.filter(b=>b.klant_id===k.id);
   let laatste=null,volgende=null,open=0;
   mine.forEach(b=>{if(b.status==="gedaan"){if(!laatste||b.datum>laatste)laatste=b.datum;if(!b.betaald)open+=Number(b.bedrag)||0}else if(b.status==="gepland"){if(!volgende||b.datum<volgende)volgende=b.datum}});
-  return {...k,laatste_beurt:laatste,volgende_beurt:volgende,aan_de_beurt:laatste?addDays(laatste,(+k.interval_weken||6)*7):today(),openstaand:Math.round(open*100)/100};
+  return {...k,laatste_beurt:laatste,volgende_beurt:volgende,aan_de_beurt:laatste?volgendeDatum(laatste,k):eerstMogelijk(today(),k),openstaand:Math.round(open*100)/100};
 }
 
 /* ---------- render ---------- */
@@ -670,7 +695,7 @@ function renderKlanten(){
   if(!list.length){$("#klantList").innerHTML=`<div class="empty">Geen klanten gevonden.</div>`;return}
   $("#klantList").innerHTML=`<div class="sub">${list.length} klanten</div>`+list.map(k=>{const s=kStatus(k);return `<button class="kl" type="button" data-klant="${k.id}">
     <div class="main"><div class="name">${esc(k.naam)}${k.zakelijk?' <span class="pill p-plain">Zakelijk</span>':""}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}${k.telefoon?" · "+esc(k.telefoon):""}</div>
-      <div class="sub">Elke ${k.interval_weken} weken · laatst ${nice(k.laatste_beurt)}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div>
+      <div class="sub">${esc(freqText(k))} · laatst ${nice(k.laatste_beurt)}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div>
     <div class="meta"><strong>${euro(k.prijs)}</strong><span class="pill ${s.cls}">${esc(s.txt)}</span>${Number(k.openstaand)>0?`<span class="pill p-warn">${euro(k.openstaand)} open</span>`:""}</div></button>`}).join("");
 }
 
@@ -739,6 +764,7 @@ function klantForm(id){
   const hist=id?S.beurten.filter(b=>b.klant_id===id).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,6):[];
   const s=id?kStatus(k):null;
   let ond=Array.isArray(k.onderdelen)?k.onderdelen.map(o=>({naam:o.naam||"",prijs:o.prijs??""})):[];
+  let fm=arr(k.vaste_maanden).length?"maanden":"weken";
   const ondHtml=()=>ond.map((o,n)=>`<div class="ondrow"><input aria-label="Onderdeel" data-on="${n}" value="${esc(o.naam)}" placeholder="Bijv. voorkant"><input aria-label="Prijs" data-op="${n}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(o.prijs)}" placeholder="€"><button class="iconbtn" type="button" data-ondel="${n}" aria-label="Verwijder onderdeel">×</button></div>`).join("");
   sheet(id?k.naam:"Nieuwe klant",`
     <label class="full">Naam<input id="f-naam" name="naam" required value="${esc(k.naam)}" autocomplete="off"></label>
@@ -750,8 +776,19 @@ function klantForm(id){
     <label class="full chk"><input id="f-zak" type="checkbox" name="zakelijk" ${k.zakelijk?"checked":""}> Zakelijke klant (krijgt een factuur)</label>
     <label class="full" id="tavWrap" ${k.zakelijk?"":"hidden"}>Ter attentie van (optioneel)<input id="f-tav" name="tav" value="${esc(k.tav)}" placeholder="Bijv. afdeling administratie"></label>
     <label>Prijs per wasbeurt (€)<input id="f-prijs" name="prijs" type="number" inputmode="decimal" step="0.01" min="0" required value="${esc(k.prijs)}"></label>
-    <label>Elke … weken
-      <select id="f-int" name="interval_weken">${[1,2,3,4,5,6,7,8,10,12,13,26,52].map(n=>`<option value="${n}" ${+k.interval_weken===n?"selected":""}>${n} ${n===1?"week":"weken"}</option>`).join("")}</select></label>
+    <div class="full"><div class="sub" style="margin-bottom:6px">Hoe vaak?</div>
+      <div class="seg" role="group" aria-label="Frequentie"><button type="button" data-fm="weken" aria-pressed="${arr(k.vaste_maanden).length?"false":"true"}">Elke … weken</button><button type="button" data-fm="maanden" aria-pressed="${arr(k.vaste_maanden).length?"true":"false"}">Vaste maanden</button></div></div>
+    <div class="full" id="fmWeken" ${arr(k.vaste_maanden).length?"hidden":""}>
+      <label>Elke … weken<select id="f-int" name="interval_weken">${[1,2,3,4,5,6,7,8,10,12,13,17,26,52].map(n=>`<option value="${n}" ${+(k.interval_weken||6)===n?"selected":""}>${n} ${n===1?"week":"weken"}</option>`).join("")}</select></label>
+      <div class="sub" style="margin:8px 0 4px">Winterstop: in deze maanden niet wassen</div>
+      <div class="chips" id="fPauze">${MN.map((m,i)=>`<label class="chk mchip"><input type="checkbox" value="${i+1}" ${arr(k.pauze_maanden).includes(i+1)?"checked":""}> ${m}</label>`).join("")}</div>
+      <div class="chips" style="margin-top:6px"><button type="button" id="fWinter">Dec t/m feb</button><button type="button" id="fWinter2">Nov t/m mrt</button><button type="button" id="fNoPauze">Geen stop</button></div>
+    </div>
+    <div class="full" id="fmMaanden" ${arr(k.vaste_maanden).length?"":"hidden"}>
+      <div class="sub" style="margin-bottom:4px">In welke maanden wassen? De volgende beurt komt op dezelfde dag van de maand.</div>
+      <div class="chips" id="fVaste">${MN.map((m,i)=>`<label class="chk mchip"><input type="checkbox" value="${i+1}" ${arr(k.vaste_maanden).includes(i+1)?"checked":""}> ${m}</label>`).join("")}</div>
+      <div class="chips" style="margin-top:6px"><button type="button" data-preset="3,6,9">3× (mrt, jun, sep)</button><button type="button" data-preset="4,8">2× (apr, aug)</button><button type="button" data-preset="3,5,7,9,11">5× (mrt–nov)</button></div>
+    </div>
     <div class="full"><div class="sub" style="margin-bottom:6px">Prijs per onderdeel (optioneel). Bij Klaar vink je aan wat je gedaan hebt; de prijs hierboven wordt dan het totaal.</div>
       <div id="ondList" class="list" style="gap:6px">${ondHtml()}</div>
       <div class="chips" style="margin-top:6px"><button type="button" id="ondAdd">+ Onderdeel</button>${["Voorkant","Achterkant","Zijkant","Dakramen","Serre","Kozijnen"].map(x=>`<button type="button" data-ondq="${x}">+ ${x}</button>`).join("")}</div></div>
@@ -768,10 +805,11 @@ function klantForm(id){
       <div class="full"><div class="sub">Laatste beurten</div><div class="hist">${hist.length?hist.map(b=>`<div><span>${nice(b.datum)}</span><span>${b.status==="gedaan"?(b.betaald?"betaald":"open"):b.status==="overgeslagen"?"niet gelukt"+(b.reden?" ("+esc(b.reden)+")":""):b.status}</span><span>${euro(b.bedrag)}</span></div>`).join(""):"<div>Nog geen beurten</div>"}</div></div>`:""}
   `,{
     onSave:async fd=>{
+      if(fm==="maanden"&&!$$("#fVaste input:checked").length){toast("Kies minstens één maand");return false}
       const onderdelen=ond.map(o=>({naam:String(o.naam).trim(),prijs:Number(String(o.prijs).replace(",","."))||0})).filter(o=>o.naam);
       let prijs=Number(String(fd.prijs).replace(",","."))||0;
       if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
-      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
       const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
       if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
@@ -782,6 +820,10 @@ function klantForm(id){
       $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
       const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
       $("#f-zak").onchange=e=>{$("#tavWrap").hidden=!e.target.checked};
+      $$("[data-fm]").forEach(x=>x.onclick=()=>{fm=x.dataset.fm;$$("[data-fm]").forEach(y=>y.setAttribute("aria-pressed",y===x));$("#fmWeken").hidden=fm!=="weken";$("#fmMaanden").hidden=fm!=="maanden"});
+      const setM=(sel,list)=>$$(sel+" input").forEach(i=>i.checked=list.includes(+i.value));
+      $("#fWinter").onclick=()=>setM("#fPauze",[12,1,2]);$("#fWinter2").onclick=()=>setM("#fPauze",[11,12,1,2,3]);$("#fNoPauze").onclick=()=>setM("#fPauze",[]);
+      $$("[data-preset]").forEach(x=>x.onclick=()=>setM("#fVaste",x.dataset.preset.split(",").map(Number)));
       const syncPrice=()=>{if(ond.some(o=>String(o.naam).trim())){const tot=ond.reduce((t,o)=>t+(Number(String(o.prijs).replace(",","."))||0),0);$("#f-prijs").value=tot.toFixed(2)}};
       const redraw=()=>{$("#ondList").innerHTML=ondHtml();syncPrice()};
       $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined){ond[+a.op].prijs=e.target.value;syncPrice()}});
@@ -848,7 +890,7 @@ function moveSheet(id){
 function klaarSheet(id){
   const b=S.beurten.find(x=>x.id===id);if(!b)return;
   const k=S.kById[b.klant_id]||{naam:"?",interval_weken:6,onderdelen:[]};
-  const next=addDays(b.datum,(+k.interval_weken||6)*7);
+  const next=volgendeDatum(b.datum,k);
   const hasNext=S.beurten.some(x=>x.klant_id===b.klant_id&&x.status==="gepland"&&x.datum>b.datum);
   const ond=Array.isArray(k.onderdelen)?k.onderdelen.filter(o=>o.naam):[];
   const total=()=>ond.length?ond.reduce((t,o,n)=>t+($("#ok-"+n)&&$("#ok-"+n).checked?(+o.prijs||0):0),0):(+b.bedrag||0);
@@ -864,7 +906,7 @@ function klaarSheet(id){
   const nd=n=>{let d=addDays(today()>b.datum?today():b.datum,n);if(parse(d).getDay()===0)d=addDays(d,1);return d};
   sheet("Klaar bij "+k.naam,`
     ${ond.length?`<div class="full"><div class="sub">Wat heb je gedaan?</div>${ond.map((o,n)=>`<div class="chkrow"><label for="ok-${n}"><input type="checkbox" id="ok-${n}" checked> ${esc(o.naam)}</label><span>${euro(o.prijs)}</span></div>`).join("")}</div>`:""}
-    <div class="full"><strong id="kTot">${euro(total())}</strong> · ${hasNext?"Er staat al een volgende beurt gepland.":"Volgende beurt wordt automatisch gepland op <strong>"+nice(next)+"</strong> (elke "+k.interval_weken+" weken)."}</div>
+    <div class="full"><strong id="kTot">${euro(total())}</strong> · ${hasNext?"Er staat al een volgende beurt gepland.":"Volgende beurt wordt automatisch gepland op <strong>"+nice(next)+"</strong> ("+esc(freqText(k).toLowerCase())+")."}</div>
     <div class="full sub">Is er al betaald?</div>
     <div class="full paygrid">
       <button class="btn ghost" type="button" data-pw="">Nog niet betaald</button>
