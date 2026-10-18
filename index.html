@@ -60,6 +60,29 @@ a.btn{text-decoration:none;display:inline-block}
 .btn.wa{background:#1f9e55;color:#fff}
 .tplbox{display:flex;flex-direction:column;gap:6px}
 .tplbox textarea{min-height:84px}
+.wx{font-size:13px;color:var(--muted);white-space:nowrap}
+.dchip .wxi{font-size:13px;line-height:1}
+.mwtag{display:inline-block;font-size:11px;font-weight:700;background:var(--surface2);color:var(--muted);border-radius:4px;padding:0 5px;margin-left:4px}
+.photo{max-width:100%;border-radius:8px;border:1px solid var(--line)}
+.bars{display:flex;flex-direction:column;gap:6px}
+.barrow{display:grid;grid-template-columns:44px 1fr 92px;gap:8px;align-items:center;font-size:13px}
+.barrow .track{position:relative;height:18px;background:var(--surface2);border-radius:4px;overflow:hidden}
+.barrow .fill{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:4px}
+.barrow .fill2{position:absolute;left:0;bottom:0;height:5px;background:var(--ok)}
+.barrow .amt{text-align:right;font-weight:600}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--muted);flex-wrap:wrap}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.tbl td.r,.tbl th.r{text-align:right}
+.scrollx{overflow-x:auto;max-width:100%}
+.ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
+.chkrow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
+.chkrow label{display:flex;gap:8px;align-items:center;font-size:15px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
+.menu-card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:flex;gap:12px;align-items:center;text-align:left;width:100%}
+.menu-card .ic{font-size:24px;width:36px;text-align:center}
+.menu-card .t{font-weight:600}
+.section-h{font-family:var(--display);font-size:20px;text-transform:uppercase;margin:6px 0 0}
 .iconbtn{background:var(--surface2);border:0;border-radius:6px;width:30px;height:30px;display:inline-grid;place-items:center;font-weight:700}
 
 /* login & setup */
@@ -152,7 +175,7 @@ section[data-view]{display:flex;flex-direction:column;gap:12px}
 
 /* tabbalk mobiel */
 nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:6;padding-bottom:env(safe-area-inset-bottom,0px)}
-nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs .wrap{display:grid;grid-template-columns:repeat(5,1fr)}
 nav.tabs button{background:none;border:0;padding:10px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--muted)}
 nav.tabs button[aria-selected="true"]{color:var(--accent)}
 nav.tabs svg{width:22px;height:22px}
@@ -238,7 +261,7 @@ nav.tabs svg{width:22px;height:22px}
     <div class="hd"><h1>Geen toegang</h1></div>
     <div class="bd">
       <div>Je bent ingelogd als <strong id="naEmail"></strong>, maar dit account staat nog niet op de lijst met medewerkers.</div>
-      <div class="sub">Vraag de beheerder om je toe te voegen in Supabase (tabel <em>medewerkers</em>).</div>
+      <div class="sub">Vraag de beheerder om je toe te voegen via Meer → Medewerkers.</div>
       <button class="btn ghost" type="button" data-logout>Uitloggen</button>
     </div>
   </div>
@@ -257,6 +280,7 @@ nav.tabs svg{width:22px;height:22px}
       <button data-tab="klanten" aria-selected="false" type="button">Klanten</button>
       <button data-tab="routes" aria-selected="false" type="button">Routes</button>
       <button data-tab="betalingen" aria-selected="false" type="button">Betalingen</button>
+      <button data-tab="meer" aria-selected="false" type="button">Meer</button>
     </div>
     <div class="hdr-acts">
       <button class="btn yellow small" id="addBtn" type="button">+ Beurt</button>
@@ -286,7 +310,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
-      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
       <div class="list" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
@@ -320,6 +344,7 @@ nav.tabs svg{width:22px;height:22px}
       <select id="rMin"><option>15</option><option>20</option><option selected>30</option><option>45</option><option>60</option></select>
       <label class="sub" for="rHorizon">aan de beurt binnen</label>
       <select id="rHorizon"><option value="7">7 dagen</option><option value="14" selected>14 dagen</option><option value="30">30 dagen</option></select>
+      <label class="sub" for="rMw" data-mw-only hidden>door</label><select id="rMw" data-mw-only hidden></select>
     </div>
     <div class="list" id="routeList"></div>
   </section>
@@ -334,6 +359,12 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div class="list" id="payList"></div>
   </section>
+
+  <!-- MEER -->
+  <section data-view="meer" hidden>
+    <div class="bar"><h2 id="meerTitle">Meer</h2><button class="btn ghost small" type="button" id="meerBack" hidden>‹ Terug</button></div>
+    <div id="meerBody" class="list"></div>
+  </section>
 </main>
 
 <nav class="tabs" aria-label="Onderdelen">
@@ -341,9 +372,38 @@ nav.tabs svg{width:22px;height:22px}
     <button role="tab" data-tab="planning" aria-selected="true" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Planning</button>
     <button role="tab" data-tab="klanten" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg>Klanten</button>
     <button role="tab" data-tab="routes" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></svg>Routes</button>
-    <button role="tab" data-tab="betalingen" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Betalingen</button>
+    <button role="tab" data-tab="betalingen" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Betaald</button>
+    <button role="tab" data-tab="meer" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>Meer</button>
   </div>
 </nav>
+</div>
+
+<!-- ============ MEDEWERKER: EIGEN ROUTE ============ -->
+<div id="crewApp" hidden>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
+      <div><h1>Mijn route</h1><small id="crewWho"></small></div>
+    </div>
+    <div class="hdr-acts"><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
+  </div>
+</header>
+<div class="stripe" aria-hidden="true"></div>
+<main class="wrap" style="padding-bottom:40px">
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <div class="bar">
+      <div class="nav">
+        <button class="btn ghost small" id="cPrev" type="button" aria-label="Vorige dag">‹</button>
+        <strong class="lbl" id="cDay"></strong>
+        <button class="btn ghost small" id="cNext" type="button" aria-label="Volgende dag">›</button>
+        <button class="btn ghost small" id="cToday" type="button">Vandaag</button>
+      </div>
+      <a class="btn ghost small" id="cMaps" target="_blank" rel="noopener" hidden>Route in Maps</a>
+    </div>
+    <div class="list" id="crewList"></div>
+  </section>
+</main>
 </div>
 
 <div id="sheetRoot"></div>
@@ -391,16 +451,17 @@ function waNum(t){
 const DEF_TPL={
   herinnering:"Hoi {naam}, {wanneer} ({datum}) kom ik rond {tijd} uw ramen wassen. Tot dan! Groet, Zijlstra Schoonmaak",
   beurt:"Hoi {naam}, het is weer tijd voor de glazenwasser. Schikt het als ik op {datum} langskom? Groet, Zijlstra Schoonmaak",
-  betaling:"Hoi {naam}, voor de wasbeurt van {datum} staat nog {bedrag} open. Wilt u dit overmaken of contant klaarleggen? Dank u wel! Groet, Zijlstra Schoonmaak"
+  betaling:"Hoi {naam}, voor de wasbeurt van {datum} staat nog {bedrag} open. Wilt u dit overmaken of contant klaarleggen? Dank u wel! Groet, Zijlstra Schoonmaak",
+  verzet:"Hoi {naam}, vanwege het weer kan ik {oud} helaas niet komen. Ik kom nu {wanneer} ({datum}) uw ramen wassen. Groet, Zijlstra Schoonmaak"
 };
-const TPL_LABEL={herinnering:"Herinnering afspraak",beurt:"Aan de beurt",betaling:"Betaalherinnering"};
+const TPL_LABEL={herinnering:"Herinnering afspraak",beurt:"Aan de beurt",betaling:"Betaalherinnering",verzet:"Verzet door weer"};
 function getTpl(k){try{const o=JSON.parse(localStorage.getItem("zs-tpl")||"{}");if(o[k])return o[k]}catch(e){}return DEF_TPL[k]}
 function setTpl(o){try{localStorage.setItem("zs-tpl",JSON.stringify(o))}catch(e){}}
 function wanneer(d){const t=today();if(d===t)return"vandaag";if(d===addDays(t,1))return"morgen";if(d===addDays(t,2))return"overmorgen";return"op "+DNL[parse(d).getDay()]}
 function longDate(d){const x=parse(d);return DNL[x.getDay()]+" "+x.getDate()+" "+["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"][x.getMonth()]}
 function fillTpl(k,v){
   const voornaam=String(v.naam||"").replace(/^(fam\.?|familie|dhr\.?|mevr\.?|mw\.?)\s+/i,"");
-  return getTpl(k).replace(/\{naam\}/g,voornaam).replace(/\{datum\}/g,v.datum?longDate(v.datum):"").replace(/\{wanneer\}/g,v.datum?wanneer(v.datum):"").replace(/\{tijd\}/g,v.tijd||"").replace(/\{bedrag\}/g,v.bedrag!=null?euro(v.bedrag):"").replace(/\s+\(\)/g,"").replace(/rond\s+uw/,"uw");
+  return getTpl(k).replace(/\{naam\}/g,voornaam).replace(/\{datum\}/g,v.datum?longDate(v.datum):"").replace(/\{wanneer\}/g,v.datum?wanneer(v.datum):"").replace(/\{tijd\}/g,v.tijd||"").replace(/\{bedrag\}/g,v.bedrag!=null?euro(v.bedrag):"").replace(/\{oud\}/g,v.oud?wanneer(v.oud).replace(/^op /,""):"").replace(/\s+\(\)/g,"").replace(/rond\s+uw/,"uw");
 }
 function waLink(tel,text){const n=waNum(tel);return n?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
 // knop: soort = herinnering|beurt|betaling, mark = "b:<beurtId>" of "k:<klantId>"
@@ -416,10 +477,11 @@ function getCfg(){
   try{const c=JSON.parse(localStorage.getItem("zs-cfg")||"null");if(c&&c.url&&c.key)return c}catch(e){}
   return null;
 }
-function show(id){["setupScreen","loginScreen","resetScreen","noAccess","app"].forEach(x=>$("#"+x).hidden=x!==id)}
+function show(id){["setupScreen","loginScreen","resetScreen","noAccess","app","crewApp"].forEach(x=>$("#"+x).hidden=x!==id)}
 
 let sb=null, user=null;
-const S={klanten:[],beurten:[],kById:{}};
+const S={klanten:[],beurten:[],kById:{},inst:{},rol:"",mws:[],wx:{}};
+let meerMode="", crewDay=today(), wxLoaded=false;
 let tab="planning", mode="dag", sel=today(), payMode="open", zoek="", kFilter="";
 
 /* ---------- start ---------- */
@@ -438,10 +500,12 @@ async function boot(){
 }
 
 async function enter(){
-  const {data:ok,error}=await sb.rpc("is_medewerker");
+  const {data:rol,error}=await sb.rpc("mijn_rol");
   if(error){toast("Database niet bereikbaar: "+error.message);show("loginScreen");return}
-  if(!ok){$("#naEmail").textContent=user.email;show("noAccess");return}
+  if(!rol){$("#naEmail").textContent=user.email;show("noAccess");return}
+  S.rol=rol;
   const {data:me}=await sb.from("medewerkers").select("naam").eq("user_id",user.id).maybeSingle();
+  if(rol==="medewerker"){$("#crewWho").textContent=(me&&me.naam)||user.email;show("crewApp");crewDay=today();await loadCrew();return}
   $("#whoami").textContent=(me&&me.naam)||user.email;
   show("app");
   try{const v=localStorage.getItem("zs-tab");if(v)tab=v;const m=localStorage.getItem("zs-mode");if(m)mode=m}catch(e){}
@@ -454,10 +518,14 @@ async function enter(){
 async function reload(){
   $("#loading").hidden=false;
   const from=addDays(today(),-400);
-  const [k,b]=await Promise.all([
-    sb.from("klant_status").select("*").order("naam"),
-    sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("tijd",{nullsFirst:false})
+  const [k,b,ins,mw]=await Promise.all([
+    sb.from("klant_overzicht").select("*").order("naam"),
+    sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("tijd",{nullsFirst:false}),
+    sb.from("instellingen").select("*").eq("id",1).maybeSingle(),
+    sb.rpc("medewerkers_lijst")
   ]);
+  S.inst=(ins&&ins.data)||{};S.mws=((mw&&mw.data)||[]).filter(x=>x.actief);
+  if(!wxLoaded){wxLoaded=true;loadWeather()}
   // oudere onbetaalde beurten ook meenemen
   const old=await sb.from("beurten").select("*").lt("datum",from).eq("status","gedaan").eq("betaald",false);
   $("#loading").hidden=true;
@@ -493,6 +561,7 @@ function render(){
   if(tab==="klanten")renderKlanten();
   if(tab==="routes")renderRoutes();
   if(tab==="betalingen")renderPay();
+  if(tab==="meer")renderMeer();
 }
 function renderSummary(){
   const t=today(),ws=monday(t),we=addDays(ws,6);
@@ -519,11 +588,14 @@ function renderDay(){
   const ws=monday(sel),t=today();
   let h="";
   for(let i=0;i<7;i++){const d=addDays(ws,i),dt=parse(d),n=bOn(d).length;
-    h+=`<button class="dchip ${d===t?"today":""}" type="button" data-day="${d}" aria-pressed="${d===sel}"><div class="dn">${DN[dt.getDay()]}</div><div class="dd">${dt.getDate()}</div><div class="dc">${n?n+" adr.":""}</div></button>`}
+    h+=`<button class="dchip ${d===t?"today":""}" type="button" data-day="${d}" aria-pressed="${d===sel}"><div class="dn">${DN[dt.getDay()]}</div><div class="dd">${dt.getDate()}</div><div class="dc">${n?n+" adr.":""}</div><div class="wxi">${wxIcon(d)}</div></button>`}
   $("#dayStrip").innerHTML=h;
   const list=bOn(sel);
   $("#dayTitle").textContent=(sel===t?"Vandaag · ":"")+DNL[parse(sel).getDay()]+" "+parse(sel).getDate()+" "+MN[parse(sel).getMonth()];
   $("#dayTotal").textContent=list.length?list.length+" adressen · "+euro(sum(list)):"";
+  $("#dayWx").textContent=wxText(sel);
+  $("#shiftBtn").hidden=!(list.some(b=>b.status!=="gedaan")&&sel>=t);
+  $("#shiftBtn").textContent=isRainy(sel)?"🌧 Regen: dag verzetten":"Dag verzetten";
   // Route in Google Maps (max ~10 tussenstops)
   const todo=list.filter(b=>b.status!=="gedaan").map(b=>S.kById[b.klant_id]).filter(Boolean);
   const mb=$("#mapsDay");
@@ -550,12 +622,14 @@ function beurtCard(b,list){
       <button class="iconbtn" type="button" data-up="${b.id}" ${idx<=0?"disabled":""} aria-label="Eerder in route">↑</button>
       <button class="iconbtn" type="button" data-down="${b.id}" ${idx>=list.length-1?"disabled":""} aria-label="Later in route">↓</button></div>
     <div class="main">
-      <div class="name">${esc(k.naam)}</div>
+      <div class="name">${esc(k.naam)}${mwTag(b.medewerker_id)}${b.factuur_nr?` <span class="pill p-plain">fact. ${esc(b.factuur_nr)}</span>`:""}</div>
       <div class="addr"><a href="${mapsUrl(k)}" target="_blank" rel="noopener">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}</a>${k.telefoon?` · <a href="${telHref(k.telefoon)}">${esc(k.telefoon)}</a>`:""}</div>
       ${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}
       ${b.notitie?`<div class="note">${esc(b.notitie)}</div>`:""}
       <div class="row-acts">
         ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>${b.betaald?"":waBtn(k,"betaling",{datum:b.datum,bedrag:b.bedrag},"","💬 Betaalherinnering")}`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>${b.datum>=t?waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,b.herinnering_op?"💬 Opnieuw":"💬 Herinnering"):""}`}
+        ${done?`<button class="btn ghost small" type="button" data-factuur="${b.id}">📄 Factuur</button>`:""}
+        ${k.foto_pad?`<button class="btn ghost small" type="button" data-foto="${b.klant_id}">📷 Foto</button>`:""}
         <button class="btn ghost small" type="button" data-edit-beurt="${b.id}">Wijzig</button>
       </div>
       ${!done&&b.herinnering_op?`<div class="sub" style="margin-top:4px">✓ Geappt op ${nice(String(b.herinnering_op).slice(0,10))}</div>`:""}
@@ -569,8 +643,8 @@ function renderWeek(){
   for(let i=0;i<7;i++){
     const d=addDays(ws,i),dt=parse(d),list=bOn(d);
     h+=`<div class="col ${d===t?"today":""}" data-drop="${d}">
-      <div class="ch" data-goto="${d}"><span class="d">${DN[dt.getDay()]} ${dt.getDate()}</span><span class="t">${list.length?list.length+" · "+euro(sum(list)):""}</span></div>
-      <div class="cb">${list.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="mini ${b.status==="gedaan"?"done":(b.datum<t?"late":"")}" draggable="true" data-drag="${b.id}" data-edit-beurt="${b.id}" role="button" tabindex="0"><div class="n">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="p">${esc(k.woonplaats||"")}${k.notitie?" · 📌":""}</div></div>`}).join("")}</div>
+      <div class="ch" data-goto="${d}"><span class="d">${DN[dt.getDay()]} ${dt.getDate()} <span style="font-size:14px">${wxIcon(d)}</span></span><span class="t">${list.length?list.length+" · "+euro(sum(list)):""}</span></div>
+      <div class="cb">${list.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="mini ${b.status==="gedaan"?"done":(b.datum<t?"late":"")}" draggable="true" data-drag="${b.id}" data-edit-beurt="${b.id}" role="button" tabindex="0"><div class="n">${esc(hm(b.tijd))} ${esc(k.naam)}${mwTag(b.medewerker_id)}</div><div class="p">${esc(k.woonplaats||"")}${k.notitie?" · 📌":""}</div></div>`}).join("")}</div>
     </div>`;
   }
   $("#weekGrid").innerHTML=h;
@@ -591,6 +665,9 @@ function renderKlanten(){
 }
 
 function renderRoutes(){
+  const others=S.mws.filter(m=>m.user_id!==(user&&user.id));
+  $$("[data-mw-only]").forEach(x=>x.hidden=!others.length);
+  const rs=$("#rMw");if(rs){const v=rs.value;rs.innerHTML=`<option value="">mijzelf</option>`+others.map(m=>`<option value="${m.user_id}">${esc(m.naam)}</option>`).join("");rs.value=v}
   const t=today(),horizon=addDays(t,+$("#rHorizon").value||14),datum=$("#rDatum").value||addDays(t,1);
   const due=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon);
   const planned=bOn(datum);
@@ -621,7 +698,7 @@ function renderPay(){
   }else if(payMode==="klant"){
     const per={};open.forEach(b=>{(per[b.klant_id]=per[b.klant_id]||[]).push(b)});
     const rows=Object.entries(per).sort((a,b)=>sum(b[1])-sum(a[1]));
-    h=rows.length?rows.map(([id,l])=>{const k=S.kById[id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${l.length} beurt(en): ${l.map(b=>nice(b.datum)).join(", ")}</div></div><div class="meta"><strong>${euro(sum(l))}</strong><button class="btn small" type="button" data-paid-all="${id}">Alles betaald</button></div></div>`}).join(""):`<div class="empty">Niemand heeft een openstaand bedrag.</div>`;
+    h=rows.length?rows.map(([id,l])=>{const k=S.kById[id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${l.length} beurt(en): ${l.map(b=>nice(b.datum)).join(", ")}</div></div><div class="meta"><strong>${euro(sum(l))}</strong><div class="row-acts" style="margin:0"><button class="btn ghost small" type="button" data-factuur-klant="${id}">📄 Factuur</button><button class="btn small" type="button" data-paid-all="${id}">Alles betaald</button></div></div></div>`}).join(""):`<div class="empty">Niemand heeft een openstaand bedrag.</div>`;
   }else{
     const m0=t.slice(0,8)+"01";
     const got=S.beurten.filter(b=>b.betaald&&(b.betaald_op||b.datum)>=addDays(m0,-62)).sort((a,b)=>(b.betaald_op||b.datum).localeCompare(a.betaald_op||a.datum));
@@ -647,30 +724,42 @@ function sheet(title,body,{onSave,onDelete,saveLabel="Opslaan",extra}={}){
 const NOTE_CHIPS=["Achterom","Poort zit op slot","Sleutel bij buren","Hond aanwezig","Bellen vooraf","Ladder nodig","Ook dakramen","Contant betalen","Tikkie sturen"];
 
 function klantForm(id){
-  const k=id?S.kById[id]:{interval_weken:6,prijs:"",actief:true,woonplaats:""};
+  const k=id?S.kById[id]:{interval_weken:6,prijs:"",actief:true,woonplaats:"",onderdelen:[]};
   const plaatsen=[...new Set(S.klanten.map(x=>x.woonplaats).filter(Boolean))].sort();
   const hist=id?S.beurten.filter(b=>b.klant_id===id).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,6):[];
   const s=id?kStatus(k):null;
+  let ond=Array.isArray(k.onderdelen)?k.onderdelen.map(o=>({naam:o.naam||"",prijs:o.prijs??""})):[];
+  const ondHtml=()=>ond.map((o,n)=>`<div class="ondrow"><input aria-label="Onderdeel" data-on="${n}" value="${esc(o.naam)}" placeholder="Bijv. voorkant"><input aria-label="Prijs" data-op="${n}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(o.prijs)}" placeholder="€"><button class="iconbtn" type="button" data-ondel="${n}" aria-label="Verwijder onderdeel">×</button></div>`).join("");
   sheet(id?k.naam:"Nieuwe klant",`
     <label class="full">Naam<input id="f-naam" name="naam" required value="${esc(k.naam)}" autocomplete="off"></label>
     <label class="full">Adres<input id="f-adres" name="adres" value="${esc(k.adres)}" placeholder="Straat en huisnummer"></label>
     <label>Postcode<input id="f-pc" name="postcode" value="${esc(k.postcode)}" placeholder="1234 AB"></label>
     <label>Woonplaats<input id="f-plaats" name="woonplaats" list="plaatsl" value="${esc(k.woonplaats)}" required><datalist id="plaatsl">${plaatsen.map(w=>`<option value="${esc(w)}">`).join("")}</datalist></label>
     <label>Telefoon<input id="f-tel" name="telefoon" type="tel" value="${esc(k.telefoon)}" placeholder="06 …"></label>
+    <label>E-mail (voor factuur)<input id="f-mail" name="email" type="email" value="${esc(k.email)}"></label>
     <label>Prijs per wasbeurt (€)<input id="f-prijs" name="prijs" type="number" inputmode="decimal" step="0.01" min="0" required value="${esc(k.prijs)}"></label>
-    <label class="full">Elke … weken
+    <label>Elke … weken
       <select id="f-int" name="interval_weken">${[1,2,3,4,5,6,7,8,10,12,13,26,52].map(n=>`<option value="${n}" ${+k.interval_weken===n?"selected":""}>${n} ${n===1?"week":"weken"}</option>`).join("")}</select></label>
+    <div class="full"><div class="sub" style="margin-bottom:6px">Prijs per onderdeel (optioneel). Bij Klaar vink je aan wat je gedaan hebt; de prijs hierboven wordt dan het totaal.</div>
+      <div id="ondList" class="list" style="gap:6px">${ondHtml()}</div>
+      <div class="chips" style="margin-top:6px"><button type="button" id="ondAdd">+ Onderdeel</button>${["Voorkant","Achterkant","Zijkant","Dakramen","Serre","Kozijnen"].map(x=>`<button type="button" data-ondq="${x}">+ ${x}</button>`).join("")}</div></div>
     <label class="full">Notitie (zie je bij elke beurt)<textarea id="f-not" name="notitie" rows="2" placeholder="Bijv. achterom, poort zit op slot">${esc(k.notitie)}</textarea></label>
     <div class="full chips" id="noteChips">${NOTE_CHIPS.map(c=>`<button type="button" data-chip="${esc(c)}">+ ${esc(c)}</button>`).join("")}</div>
+    ${id?`<div class="full"><div class="sub" style="margin-bottom:6px">Foto (bijv. achterom, poort of sleutelkastje)</div>
+      <div id="fotoBox">${k.foto_pad?`<div class="sub">Foto laden…</div>`:`<div class="sub">Nog geen foto.</div>`}</div>
+      <div class="row-acts"><label class="btn ghost small" for="fotoIn" style="cursor:pointer">📷 ${k.foto_pad?"Andere foto":"Foto toevoegen"}</label><input id="fotoIn" type="file" accept="image/*" hidden>${k.foto_pad?`<button class="btn danger small" type="button" id="fotoDel">Foto weg</button>`:""}</div></div>`:`<div class="full sub">Na opslaan kun je een foto toevoegen.</div>`}
     <label class="full chk"><input id="f-act" type="checkbox" name="actief" ${k.actief?"checked":""}> Actieve klant (zet uit als iemand stopt)</label>
     ${id?`<div class="full"><div class="sub" style="margin-bottom:6px">Status: <span class="pill ${s.cls}">${esc(s.txt)}</span>${k.telefoon?` · <a href="${telHref(k.telefoon)}">Bel ${esc(k.telefoon)}</a>`:""} · <a href="${mapsUrl(k)}" target="_blank" rel="noopener">Kaart</a></div>
       <div class="row-acts">${k.volgende_beurt?"":`<button class="btn yellow small" type="button" id="planNext">Plan beurt op ${nice(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)}</button>`}
       ${waBtn(k,"beurt",{datum:k.volgende_beurt||(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)},"k:"+k.id,"💬 App klant")}
       <button class="btn ghost small" type="button" data-tpl>Berichtteksten</button></div></div>
-      <div class="full"><div class="sub">Laatste beurten</div><div class="hist">${hist.length?hist.map(b=>`<div><span>${nice(b.datum)}</span><span>${b.status==="gedaan"?(b.betaald?"betaald":"open"):b.status}</span><span>${euro(b.bedrag)}</span></div>`).join(""):"<div>Nog geen beurten</div>"}</div></div>`:""}
+      <div class="full"><div class="sub">Laatste beurten</div><div class="hist">${hist.length?hist.map(b=>`<div><span>${nice(b.datum)}</span><span>${b.status==="gedaan"?(b.betaald?"betaald":"open"):b.status==="overgeslagen"?"niet gelukt"+(b.reden?" ("+esc(b.reden)+")":""):b.status}</span><span>${euro(b.bedrag)}</span></div>`).join(""):"<div>Nog geen beurten</div>"}</div></div>`:""}
   `,{
     onSave:async fd=>{
-      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),prijs:Number(String(fd.prijs).replace(",","."))||0,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief};
+      const onderdelen=ond.map(o=>({naam:String(o.naam).trim(),prijs:Number(String(o.prijs).replace(",","."))||0})).filter(o=>o.naam);
+      let prijs=Number(String(fd.prijs).replace(",","."))||0;
+      if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),prijs,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
       const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
       if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
@@ -680,6 +769,17 @@ function klantForm(id){
     extra:()=>{
       $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
       const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
+      const syncPrice=()=>{if(ond.some(o=>String(o.naam).trim())){const tot=ond.reduce((t,o)=>t+(Number(String(o.prijs).replace(",","."))||0),0);$("#f-prijs").value=tot.toFixed(2)}};
+      const redraw=()=>{$("#ondList").innerHTML=ondHtml();syncPrice()};
+      $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined){ond[+a.op].prijs=e.target.value;syncPrice()}});
+      $("#ondList").addEventListener("click",e=>{const x=e.target.closest("[data-ondel]");if(x){ond.splice(+x.dataset.ondel,1);redraw()}});
+      $("#ondAdd").onclick=()=>{ond.push({naam:"",prijs:""});redraw();const ins=$$("#ondList [data-on]");if(ins.length)ins[ins.length-1].focus()};
+      $$("[data-ondq]").forEach(x=>x.onclick=()=>{ond.push({naam:x.dataset.ondq,prijs:""});redraw();const ins=$$("#ondList [data-op]");if(ins.length)ins[ins.length-1].focus()});
+      if(id){
+        if(k.foto_pad)signedUrl(k.foto_pad).then(u=>{const fb=$("#fotoBox");if(fb)fb.innerHTML=u?`<img class="photo" src="${esc(u)}" alt="Foto bij ${esc(k.naam)}">`:`<div class="sub">Foto kon niet geladen worden.</div>`});
+        $("#fotoIn").onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;$("#fotoBox").innerHTML=`<div class="sub">Foto uploaden…</div>`;const ok=await uploadFoto(id,f,k.foto_pad);if(ok){$("#sheetRoot").innerHTML="";klantForm(id)}else $("#fotoBox").innerHTML=`<div class="err">Uploaden mislukt. Probeer het opnieuw.</div>`};
+        const fd2=$("#fotoDel");if(fd2)fd2.onclick=async()=>{await sb.storage.from("fotos").remove([k.foto_pad]);await run(sb.from("klanten").update({foto_pad:""}).eq("id",id),"Foto verwijderd");$("#sheetRoot").innerHTML="";klantForm(id)};
+      }
     }
   });
 }
@@ -695,6 +795,7 @@ function beurtForm(id,preset={}){
     <label>Tijd<input id="b-tijd" name="tijd" type="time" step="300" value="${esc(hm(b.tijd))}"></label>
     <label>Bedrag (€)<input id="b-bed" name="bedrag" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(id?b.bedrag:(k0?k0.prijs:""))}" placeholder="Prijs van klant"></label>
     <label>Status<select id="b-st" name="status">${["gepland","gedaan","overgeslagen"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select></label>
+    ${S.mws.length>1?`<label class="full">Wie gaat er wassen?<select id="b-mw" name="medewerker_id"><option value="">Ikzelf</option>${S.mws.filter(m=>m.user_id!==(user&&user.id)).map(m=>`<option value="${m.user_id}" ${b.medewerker_id===m.user_id?"selected":""}>${esc(m.naam)}</option>`).join("")}</select></label>`:""}
     <label class="full chk"><input id="b-bet" type="checkbox" name="betaald" ${b.betaald?"checked":""}> Betaald</label>
     <label class="full">Notitie bij deze beurt<input id="b-not" name="notitie" value="${esc(b.notitie)}" placeholder="Alleen voor deze keer"></label>
   `,{
@@ -702,6 +803,7 @@ function beurtForm(id,preset={}){
       if(!fd.klant_id){toast("Kies een klant");return false}
       const k=S.kById[fd.klant_id]||{};
       const row={klant_id:fd.klant_id,datum:fd.datum,tijd:fd.tijd||null,bedrag:fd.bedrag===""?(+k.prijs||0):Number(String(fd.bedrag).replace(",",".")),status:fd.status,betaald:!!fd.betaald,notitie:fd.notitie.trim()};
+      if("medewerker_id" in fd)row.medewerker_id=fd.medewerker_id||null;
       if(row.betaald&&!(b.betaald))row.betaald_op=today();
       if(!row.betaald)row.betaald_op=null;
       if(row.status==="gedaan"&&b.status!=="gedaan")row.gedaan_op=new Date().toISOString();
@@ -732,18 +834,24 @@ function moveSheet(id){
 
 function klaarSheet(id){
   const b=S.beurten.find(x=>x.id===id);if(!b)return;
-  const k=S.kById[b.klant_id]||{naam:"?",interval_weken:6};
+  const k=S.kById[b.klant_id]||{naam:"?",interval_weken:6,onderdelen:[]};
   const next=addDays(b.datum,(+k.interval_weken||6)*7);
   const hasNext=S.beurten.some(x=>x.klant_id===b.klant_id&&x.status==="gepland"&&x.datum>b.datum);
+  const ond=Array.isArray(k.onderdelen)?k.onderdelen.filter(o=>o.naam):[];
+  const total=()=>ond.length?ond.reduce((t,o,n)=>t+($("#ok-"+n)&&$("#ok-"+n).checked?(+o.prijs||0):0),0):(+b.bedrag||0);
   const go=async(betaald,wijze)=>{
+    const sel_=ond.length?ond.filter((o,n)=>$("#ok-"+n).checked):null;
+    const bedrag=ond.length?Math.round(total()*100)/100:null;
     $("#sheetRoot").innerHTML="";
-    const {data,error}=await sb.rpc("rond_af",{p_beurt_id:id,p_betaald:betaald,p_betaalwijze:wijze});
+    const {data,error}=await sb.rpc("beurt_klaar",{p_beurt_id:id,p_betaald:betaald,p_betaalwijze:wijze,p_bedrag:bedrag,p_onderdelen:sel_});
     if(error){toast("Afronden mislukt: "+error.message);return}
     toast(data&&data.datum?"Klaar ✓ Volgende beurt: "+nice(data.datum):"Klaar ✓");
     await reload();
   };
+  const nd=n=>{let d=addDays(today()>b.datum?today():b.datum,n);if(parse(d).getDay()===0)d=addDays(d,1);return d};
   sheet("Klaar bij "+k.naam,`
-    <div class="full">${euro(b.bedrag)} · ${hasNext?"Er staat al een volgende beurt gepland.":"Volgende beurt wordt automatisch gepland op <strong>"+nice(next)+"</strong> (elke "+k.interval_weken+" weken)."}</div>
+    ${ond.length?`<div class="full"><div class="sub">Wat heb je gedaan?</div>${ond.map((o,n)=>`<div class="chkrow"><label for="ok-${n}"><input type="checkbox" id="ok-${n}" checked> ${esc(o.naam)}</label><span>${euro(o.prijs)}</span></div>`).join("")}</div>`:""}
+    <div class="full"><strong id="kTot">${euro(total())}</strong> · ${hasNext?"Er staat al een volgende beurt gepland.":"Volgende beurt wordt automatisch gepland op <strong>"+nice(next)+"</strong> (elke "+k.interval_weken+" weken)."}</div>
     <div class="full sub">Is er al betaald?</div>
     <div class="full paygrid">
       <button class="btn ghost" type="button" data-pw="">Nog niet betaald</button>
@@ -752,7 +860,23 @@ function klaarSheet(id){
       <button class="btn ok" type="button" data-pw="pin">Pin</button>
       <button class="btn ghost full" type="button" data-pw="factuur" style="grid-column:1/-1">Via factuur (nog open)</button>
     </div>
-  `,{extra:()=>{document.querySelectorAll("[data-pw]").forEach(x=>x.onclick=()=>{const w=x.dataset.pw;go(w!==""&&w!=="factuur",w)})}});
+    <div class="full" style="border-top:1px dashed var(--line);padding-top:10px"><div class="section-h" style="font-size:17px">Niet gelukt?</div>
+      <div class="chips" id="ngReden">${["Niet thuis","Poort op slot","Regen","Geen toegang","Anders"].map(r=>`<button type="button" data-r="${r}">${r}</button>`).join("")}</div>
+      <div id="ngWhen" hidden style="margin-top:8px"><div class="sub">Opnieuw inplannen:</div><div class="chips" style="margin-top:4px">
+        <button type="button" data-ng="${nd(1)}">Morgen (${nice(nd(1))})</button><button type="button" data-ng="${nd(3)}">Over 3 dagen (${nice(nd(3))})</button><button type="button" data-ng="${nd(7)}">Volgende week (${nice(nd(7))})</button><button type="button" data-ng="">Niet opnieuw plannen</button></div></div></div>
+  `,{extra:()=>{
+    $$("[data-pw]").forEach(x=>x.onclick=()=>{const w=x.dataset.pw;go(w!==""&&w!=="factuur",w)});
+    ond.forEach((o,n)=>$("#ok-"+n).addEventListener("change",()=>{$("#kTot").textContent=euro(total())}));
+    let reden="";
+    $$("#ngReden [data-r]").forEach(x=>x.onclick=()=>{reden=x.dataset.r;$$("#ngReden [data-r]").forEach(y=>y.style.background=y===x?"var(--warn-bg)":"");$("#ngWhen").hidden=false});
+    $$("[data-ng]").forEach(x=>x.onclick=async()=>{
+      $("#sheetRoot").innerHTML="";
+      const {error}=await sb.rpc("niet_gelukt",{p_beurt_id:id,p_reden:reden,p_nieuwe_datum:x.dataset.ng||null});
+      if(error){toast("Opslaan mislukt: "+error.message);return}
+      toast(x.dataset.ng?"Genoteerd. Opnieuw gepland op "+nice(x.dataset.ng):"Genoteerd als niet gelukt");
+      await reload();
+    });
+  }});
 }
 
 function paySheet(ids,title){
@@ -781,6 +905,321 @@ function tplSheet(){
     extra:()=>{$("#tplReset").onclick=()=>{Object.keys(DEF_TPL).forEach(k=>$("#tpl-"+k).value=DEF_TPL[k])}}});
 }
 
+/* ---------- hulpjes ---------- */
+function mwTag(uid){if(!uid||(user&&uid===user.id))return"";const m=S.mws.find(x=>x.user_id===uid);if(!m)return"";const ini=String(m.naam||"?").split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();return `<span class="mwtag" title="${esc(m.naam)}">${esc(ini)}</span>`}
+function loadScript(src){return new Promise((res,rej)=>{if(document.querySelector(`script[src="${src}"]`)){res();return}const x=document.createElement("script");x.src=src;x.onload=()=>res();x.onerror=()=>rej(new Error("Laden mislukt: "+src));document.head.appendChild(x)})}
+const urlCache={};
+async function signedUrl(path){if(!path)return"";const c=urlCache[path];if(c&&c.t>Date.now()-50*60e3)return c.u;const {data,error}=await sb.storage.from("fotos").createSignedUrl(path,3600);if(error||!data)return"";urlCache[path]={u:data.signedUrl,t:Date.now()};return data.signedUrl}
+function compressImage(file,max=1400,q=.82){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>{const img=new Image();img.onload=()=>{let w=img.naturalWidth,h=img.naturalHeight;const f=Math.min(1,max/Math.max(w,h));w=Math.round(w*f);h=Math.round(h*f);const c=document.createElement("canvas");c.width=w;c.height=h;const cx=c.getContext("2d");cx.fillStyle="#fff";cx.fillRect(0,0,w,h);cx.drawImage(img,0,0,w,h);c.toBlob(b=>b?res(b):rej(new Error("Kon foto niet verwerken")),"image/jpeg",q)};img.onerror=()=>rej(new Error("Onbekend fotoformaat"));img.src=r.result};r.onerror=()=>rej(r.error);r.readAsDataURL(file)})}
+async function uploadFoto(klantId,file,oud){
+  try{
+    const blob=await compressImage(file);
+    const path=`klant/${klantId}/${Date.now()}.jpg`;
+    const {error}=await sb.storage.from("fotos").upload(path,blob,{contentType:"image/jpeg",upsert:false});
+    if(error){toast("Uploaden mislukt: "+error.message);return false}
+    await sb.from("klanten").update({foto_pad:path}).eq("id",klantId);
+    if(oud)sb.storage.from("fotos").remove([oud]).then(()=>{});
+    toast("Foto opgeslagen");await reload();return true;
+  }catch(e){toast(e.message);return false}
+}
+async function fotoSheet(path,title){
+  sheet(title,`<div class="full" id="fsBox"><div class="sub">Foto laden…</div></div>`,{});
+  const u=await signedUrl(path);const b=$("#fsBox");if(b)b.innerHTML=u?`<img class="photo" src="${esc(u)}" alt="${esc(title)}">`:`<div class="err">Foto kon niet geladen worden.</div>`;
+}
+
+/* ---------- weer (Open-Meteo, gratis, geen sleutel) ---------- */
+const WX={0:"☀️",1:"🌤",2:"⛅",3:"☁️",45:"🌫",48:"🌫",51:"🌦",53:"🌦",55:"🌦",56:"🌦",57:"🌦",61:"🌧",63:"🌧",65:"🌧",66:"🌧",67:"🌧",71:"🌨",73:"🌨",75:"🌨",77:"🌨",80:"🌦",81:"🌧",82:"🌧",85:"🌨",86:"🌨",95:"⛈",96:"⛈",99:"⛈"};
+function wxIcon(d){const w=S.wx[d];return w?(WX[w.code]||""):""}
+function wxText(d){const w=S.wx[d];if(!w)return"";return `${WX[w.code]||""} ${Math.round(w.tmax)}°${w.mm>=0.3?" · "+String(w.mm.toFixed(1)).replace(".",",")+" mm":""}${w.prob!=null&&w.prob>=30?" ("+w.prob+"%)":""}`}
+function isRainy(d){const w=S.wx[d];return !!w&&((w.mm>=2&&(w.prob==null||w.prob>=50))||[63,65,81,82,95,96,99].includes(w.code))}
+async function geocode(name){
+  if(!name)return null;const key="zs-geo-"+name.toLowerCase();
+  try{const c=JSON.parse(localStorage.getItem(key)||"null");if(c)return c}catch(e){}
+  try{const r=await fetch("https://geocoding-api.open-meteo.com/v1/search?count=1&language=nl&countryCode=NL&name="+encodeURIComponent(name));const j=await r.json();const g=j.results&&j.results[0];if(!g)return null;const o={lat:g.latitude,lon:g.longitude};try{localStorage.setItem(key,JSON.stringify(o))}catch(e){}return o}catch(e){return null}
+}
+async function loadWeather(){
+  try{
+    let lat=S.inst.weer_lat,lon=S.inst.weer_lon;
+    if(lat==null||lon==null){
+      const cnt={};S.klanten.forEach(k=>{if(k.woonplaats)cnt[k.woonplaats]=(cnt[k.woonplaats]||0)+1});
+      const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+      const g=await geocode(S.inst.weer_plaats||S.inst.plaats||(top&&top[0])||"Leeuwarden");if(!g)return;lat=g.lat;lon=g.lon;
+    }
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=weather_code,precipitation_sum,precipitation_probability_max,temperature_2m_max&timezone=Europe%2FAmsterdam&forecast_days=14`);
+    const j=await r.json();const d=j.daily;if(!d)return;
+    d.time.forEach((t,n)=>{S.wx[t]={code:d.weather_code[n],mm:+d.precipitation_sum[n]||0,prob:d.precipitation_probability_max?d.precipitation_probability_max[n]:null,tmax:d.temperature_2m_max[n]}});
+    if(tab==="planning")renderPlanning();
+  }catch(e){/* weer is een extraatje */}
+}
+
+/* ---------- dag verzetten ---------- */
+function shiftSheet(from){
+  const list=bOn(from).filter(b=>b.status!=="gedaan");
+  let to=addDays(from,1);if(parse(to).getDay()===0)to=addDays(to,1);
+  const opts=[];let d=from;for(let n=0;n<6;n++){d=addDays(d,1);if(parse(d).getDay()===0)continue;opts.push(d)}
+  sheet("Dag verzetten",`
+    <div class="full">${list.length} adressen van <strong>${nice(from)}</strong>${wxText(from)?" ("+esc(wxText(from))+")":""} verzetten naar:</div>
+    <div class="full chips" id="shTo">${opts.map(o=>`<button type="button" data-to="${o}">${nice(o)} ${wxIcon(o)}${isRainy(o)?" (regen)":""}</button>`).join("")}</div>
+    <label>Of kies een datum<input type="date" id="sh-d" name="to" value="${to}" required></label>
+    <div class="full sub">Tijden en volgorde blijven gelijk. Daarna kun je iedereen met één tik per klant appen.</div>
+  `,{saveLabel:"Verzetten",onSave:async fd=>{
+    const nt=fd.to;if(!nt||nt===from)return false;
+    const start=bOn(nt).length;
+    for(let n=0;n<list.length;n++){const {error}=await sb.from("beurten").update({datum:nt,volgorde:start+n,herinnering_op:null}).eq("id",list[n].id);if(error){toast("Verzetten mislukt: "+error.message);return false}}
+    await reload();toast(list.length+" adressen verzet naar "+nice(nt));
+    setTimeout(()=>verzetAppSheet(list.map(b=>b.id),from,nt),60);
+    return true;
+  },extra:()=>{$$("#shTo [data-to]").forEach(x=>x.onclick=()=>{$("#sh-d").value=x.dataset.to})}});
+}
+function verzetAppSheet(ids,oud,nieuw){
+  const rows=ids.map(id=>S.beurten.find(b=>b.id===id)).filter(Boolean);
+  sheet("Klanten laten weten",`
+    <div class="full sub">Tik per klant op Stuur; WhatsApp opent met het bericht klaar.</div>
+    <div class="full list">${rows.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="sub">${esc(k.telefoon||"geen telefoonnummer")}</div></div><div class="meta">${waBtn(k,"verzet",{datum:nieuw,oud,tijd:hm(b.tijd)},"b:"+b.id,"💬 Stuur")}</div></div>`}).join("")}</div>
+    <div class="full sub">Voorbeeld: “${esc(fillTpl("verzet",{naam:"Fam. de Vries",datum:nieuw,oud}))}”</div>`,{});
+}
+
+/* ---------- dagafsluiting ---------- */
+function dagSheet(d){
+  const dag=S.beurten.filter(b=>b.datum===d);
+  const gedaan=dag.filter(b=>b.status==="gedaan"),niet=dag.filter(b=>b.status==="overgeslagen"),nog=dag.filter(b=>b.status==="gepland");
+  const ontv=S.beurten.filter(b=>b.betaald&&b.betaald_op===d);
+  const per={};ontv.forEach(b=>{const w=b.betaalwijze||"onbekend";per[w]=(per[w]||0)+(+b.bedrag||0)});
+  const open=gedaan.filter(b=>!b.betaald);
+  const nm=b=>esc((S.kById[b.klant_id]||{}).naam||"?");
+  sheet("Dagafsluiting "+nice(d),`
+    <div class="full summary" style="margin:0;grid-template-columns:repeat(2,1fr)">
+      <div class="stat"><div class="k">Gewassen</div><div class="v">${gedaan.length}</div><div class="s">${euro(sum(gedaan))}</div></div>
+      <div class="stat"><div class="k">Ontvangen</div><div class="v">${euro(sum(ontv))}</div><div class="s">${ontv.length} betalingen</div></div>
+    </div>
+    <div class="full"><div class="section-h" style="font-size:17px">Ontvangen per betaalwijze</div>
+      ${Object.keys(per).length?`<table class="tbl">${["contant","tikkie","pin","factuur","onbekend"].filter(w=>per[w]).map(w=>`<tr><td>${w[0].toUpperCase()+w.slice(1)}</td><td class="r">${euro(per[w])}</td></tr>`).join("")}</table>`:`<div class="sub">Vandaag niets ontvangen.</div>`}
+      ${per.contant?`<div class="sub" style="margin-top:4px">Dit bedrag hoort contant in je kas te zitten: <strong>${euro(per.contant)}</strong></div>`:""}</div>
+    <div class="full"><div class="section-h" style="font-size:17px">Nog te betalen (${open.length})</div>${open.length?`<table class="tbl">${open.map(b=>`<tr><td>${nm(b)}</td><td class="r">${euro(b.bedrag)}</td></tr>`).join("")}</table>`:`<div class="sub">Niets open van deze dag.</div>`}</div>
+    ${niet.length?`<div class="full"><div class="section-h" style="font-size:17px">Niet gelukt (${niet.length})</div><table class="tbl">${niet.map(b=>`<tr><td>${nm(b)}</td><td>${esc(b.reden||"")}</td></tr>`).join("")}</table></div>`:""}
+    ${nog.length?`<div class="full"><div class="section-h" style="font-size:17px">Nog niet afgevinkt (${nog.length})</div><table class="tbl">${nog.map(b=>`<tr><td>${esc(hm(b.tijd))}</td><td>${nm(b)}</td></tr>`).join("")}</table></div>`:""}
+  `,{});
+}
+
+/* ---------- facturen (PDF) ---------- */
+async function dataUrlFromPath(path){try{const u=await signedUrl(path);if(!u)return"";const r=await fetch(u);const b=await r.blob();return await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.readAsDataURL(b)})}catch(e){return""}}
+async function maakFactuur(klantId,beurtIds){
+  const I=S.inst||{};
+  if(!I.iban||!I.bedrijfsnaam){toast("Vul eerst je bedrijfsgegevens in (Meer → Bedrijfsgegevens)");tab="meer";meerMode="bedrijf";setTab();return}
+  const k=S.kById[klantId];const rows=beurtIds.map(id=>S.beurten.find(b=>b.id===id)).filter(Boolean).sort((a,b)=>a.datum.localeCompare(b.datum));
+  if(!k||!rows.length)return;
+  $("#loading").hidden=false;
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    let nr=rows[0].factuur_nr&&rows.every(b=>b.factuur_nr===rows[0].factuur_nr)?rows[0].factuur_nr:"";
+    if(!nr){const {data,error}=await sb.rpc("volgend_factuurnummer");if(error)throw new Error(error.message);nr=data;await sb.from("beurten").update({factuur_nr:nr}).in("id",rows.map(b=>b.id))}
+    const logo=I.logo_pad?await dataUrlFromPath(I.logo_pad):"";
+    const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4"});
+    const E=n=>"€ "+(Number(n)||0).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const L=20,R=190;let y=20;
+    if(logo){try{const p=doc.getImageProperties(logo);const h=18,w=Math.min(60,p.width*h/p.height);doc.addImage(logo,L,y-4,w,h)}catch(e){}}
+    doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text(I.bedrijfsnaam||"",R,y,{align:"right"});
+    doc.setFont("helvetica","normal");doc.setFontSize(9);
+    [I.adres,[I.postcode,I.plaats].filter(Boolean).join(" "),I.telefoon,I.email,I.kvk?"KvK "+I.kvk:"",I.btw_nummer&&!I.kor?"Btw "+I.btw_nummer:"",I.iban?"IBAN "+I.iban:""].filter(Boolean).forEach(l=>{y+=4.6;doc.text(l,R,y,{align:"right"})});
+    y=Math.max(y,46)+10;
+    doc.setFont("helvetica","bold");doc.setFontSize(22);doc.text("Factuur",L,y);
+    y+=10;doc.setFontSize(10);doc.setFont("helvetica","normal");
+    const fdat=today(),verv=addDays(fdat,+I.betaaltermijn||14);
+    const kb=[k.naam,k.adres,[k.postcode,k.woonplaats].filter(Boolean).join(" "),k.email].filter(Boolean);
+    kb.forEach((l,n)=>doc.text(l,L,y+n*5));
+    [["Factuurnummer",nr],["Factuurdatum",longDate(fdat)],["Vervaldatum",longDate(verv)]].forEach(([a,b],n)=>{doc.setFont("helvetica","bold");doc.text(a,120,y+n*5);doc.setFont("helvetica","normal");doc.text(b,R,y+n*5,{align:"right"})});
+    y+=Math.max(kb.length,3)*5+10;
+    doc.setFillColor(238,243,246);doc.rect(L,y-5,R-L,8,"F");doc.setFont("helvetica","bold");
+    doc.text("Omschrijving",L+2,y);doc.text("Datum",120,y);doc.text("Bedrag",R-2,y,{align:"right"});doc.setFont("helvetica","normal");y+=8;
+    let tot=0;
+    rows.forEach(b=>{
+      const lines=Array.isArray(b.onderdelen)&&b.onderdelen.length?b.onderdelen.map(o=>["Glazenwassen – "+o.naam,+o.prijs||0]):[["Glazenwassen",+b.bedrag||0]];
+      lines.forEach(([t,v])=>{if(y>260){doc.addPage();y=20}doc.text(doc.splitTextToSize(t,95),L+2,y);doc.text(nice(b.datum),120,y);doc.text(E(v),R-2,y,{align:"right"});tot+=v;y+=6});
+    });
+    tot=Math.round(tot*100)/100;
+    y+=2;doc.setDrawColor(205,217,224);doc.line(120,y,R,y);y+=6;
+    const t=+I.btw_tarief||21;let excl,btw,incl;
+    if(I.kor){excl=tot;btw=0;incl=tot}else if(I.prijzen_incl_btw){incl=tot;excl=Math.round(incl/(1+t/100)*100)/100;btw=Math.round((incl-excl)*100)/100}else{excl=tot;btw=Math.round(excl*t)/100;incl=Math.round((excl+btw)*100)/100}
+    const tl=(a,b,bold)=>{doc.setFont("helvetica",bold?"bold":"normal");doc.text(a,120,y);doc.text(b,R-2,y,{align:"right"});y+=6};
+    if(!I.kor){tl("Subtotaal excl. btw",E(excl));tl("Btw "+String(t).replace(".",",")+"%",E(btw))}
+    doc.setFontSize(12);tl("Totaal",E(incl),true);doc.setFontSize(10);doc.setFont("helvetica","normal");
+    y+=6;
+    const paid=rows.every(b=>b.betaald);
+    const txt=paid?`Deze factuur is al voldaan${rows[0].betaalwijze?" ("+rows[0].betaalwijze+")":""}. Dank u wel!`:`Graag het totaalbedrag vóór ${longDate(verv)} overmaken op ${I.iban} ten name van ${I.bedrijfsnaam}, onder vermelding van factuurnummer ${nr}.`;
+    doc.text(doc.splitTextToSize(txt,R-L),L,y);y+=12;
+    if(I.kor){doc.setFontSize(9);doc.text("Vrijgesteld van btw op grond van de kleineondernemersregeling (KOR).",L,y)}
+    doc.setFontSize(8);doc.setTextColor(120);doc.text(`${I.bedrijfsnaam}${I.kvk?" · KvK "+I.kvk:""}${I.iban?" · IBAN "+I.iban:""}`,105,287,{align:"center"});
+    const blob=doc.output("blob");const naam=`Factuur ${nr} ${k.naam}.pdf`.replace(/[\\/:*?"<>|]/g,"");
+    const file=new File([blob],naam,{type:"application/pdf"});
+    const url=URL.createObjectURL(blob);
+    $("#loading").hidden=true;await reload();
+    const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+    sheet("Factuur "+nr,`
+      <div class="full">Factuur voor <strong>${esc(k.naam)}</strong>: ${E(incl)}${paid?" (al betaald)":""}.</div>
+      <div class="full row-acts">${canShare?`<button class="btn" type="button" id="fShare">Delen (WhatsApp, mail…)</button>`:""}<a class="btn ghost" href="${url}" download="${esc(naam)}" target="_blank" rel="noopener">Openen / downloaden</a></div>
+      <div class="full sub">Tip: kies bij Delen voor WhatsApp of Mail om de PDF direct naar de klant te sturen.</div>`,{});
+    const fs=$("#fShare");if(fs)fs.onclick=async()=>{try{await navigator.share({files:[file],title:naam,text:`Factuur ${nr} van ${I.bedrijfsnaam}`})}catch(e){}};
+  }catch(e){$("#loading").hidden=true;toast("Factuur maken mislukt: "+e.message)}
+}
+
+/* ---------- Meer ---------- */
+const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+function renderMeer(){
+  $("#meerBack").hidden=!meerMode;
+  const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
+  if(!meerMode){$("#meerBody").innerHTML=MEER.map(([k,ic,t,d])=>`<button class="menu-card" type="button" data-meer="${k}"><span class="ic">${ic}</span><span><div class="t">${t}</div><div class="sub">${d}</div></span></button>`).join("");return}
+  if(meerMode==="omzet")return renderOmzet();
+  if(meerMode==="bedrijf")return renderBedrijf();
+  if(meerMode==="medewerkers")return renderMws();
+  if(meerMode==="import")return renderImport();
+  if(meerMode==="teksten"){meerMode="";renderMeer();tplSheet();return}
+}
+let omzetJaar=new Date().getFullYear();
+function renderOmzet(){
+  const yrs=[...new Set(S.beurten.map(b=>+b.datum.slice(0,4)))].sort((a,b)=>b-a);if(!yrs.includes(omzetJaar))yrs.unshift(omzetJaar);
+  const Y=String(omzetJaar);
+  const ged=S.beurten.filter(b=>b.status==="gedaan"&&b.datum.startsWith(Y));
+  const ont=S.beurten.filter(b=>b.betaald&&(b.betaald_op||b.datum).startsWith(Y));
+  const m1=Array.from({length:12},(_,m)=>{const key=Y+"-"+pad(m+1);return{g:sum(ged.filter(b=>b.datum.startsWith(key))),o:sum(ont.filter(b=>(b.betaald_op||b.datum).startsWith(key))),n:ged.filter(b=>b.datum.startsWith(key)).length}});
+  const max=Math.max(1,...m1.map(x=>Math.max(x.g,x.o)));
+  const perPl={};ged.forEach(b=>{const w=(S.kById[b.klant_id]||{}).woonplaats||"Onbekend";perPl[w]=perPl[w]||{n:0,s:0};perPl[w].n++;perPl[w].s+=+b.bedrag||0});
+  const perW={};ont.forEach(b=>{const w=b.betaalwijze||"onbekend";perW[w]=(perW[w]||0)+(+b.bedrag||0)});
+  const open=S.beurten.filter(b=>b.status==="gedaan"&&!b.betaald);
+  const niet=S.beurten.filter(b=>b.status==="overgeslagen"&&b.datum.startsWith(Y)).length;
+  $("#meerBody").innerHTML=`
+    <div class="filters"><label class="sub" for="oJaar">Jaar</label><select id="oJaar">${yrs.map(y=>`<option ${y===omzetJaar?"selected":""}>${y}</option>`).join("")}</select></div>
+    <div class="summary" style="margin:0">
+      <div class="stat"><div class="k">Gewassen ${Y}</div><div class="v">${euro(sum(ged))}</div><div class="s">${ged.length} beurten</div></div>
+      <div class="stat"><div class="k">Ontvangen ${Y}</div><div class="v">${euro(sum(ont))}</div><div class="s">${ont.length} betalingen</div></div>
+      <div class="stat"><div class="k">Gemiddeld</div><div class="v">${euro(ged.length?sum(ged)/ged.length:0)}</div><div class="s">per beurt</div></div>
+      <div class="stat ${open.length?"alert":""}"><div class="k">Nu openstaand</div><div class="v">${euro(sum(open))}</div><div class="s">${niet} keer niet gelukt in ${Y}</div></div>
+    </div>
+    <div class="section-h">Per maand</div>
+    <div class="legend"><span><i style="background:var(--accent)"></i>Gewassen</span><span><i style="background:var(--ok)"></i>Ontvangen</span></div>
+    <div class="bars">${m1.map((x,m)=>`<div class="barrow"><span>${MN[m]}</span><div class="track" title="Gewassen ${euro(x.g)}, ontvangen ${euro(x.o)}"><div class="fill" style="width:${(x.g/max*100).toFixed(1)}%"></div><div class="fill2" style="width:${(x.o/max*100).toFixed(1)}%"></div></div><span class="amt">${x.g?euro(x.g):"—"}</span></div>`).join("")}</div>
+    <div class="section-h">Per woonplaats</div>
+    <div class="scrollx"><table class="tbl"><tr><th>Woonplaats</th><th class="r">Beurten</th><th class="r">Omzet</th></tr>${Object.entries(perPl).sort((a,b)=>b[1].s-a[1].s).map(([w,v])=>`<tr><td>${esc(w)}</td><td class="r">${v.n}</td><td class="r">${euro(v.s)}</td></tr>`).join("")||`<tr><td colspan="3" class="sub">Nog geen gewassen beurten.</td></tr>`}</table></div>
+    <div class="section-h">Ontvangen per betaalwijze</div>
+    <div class="scrollx"><table class="tbl">${Object.entries(perW).sort((a,b)=>b[1]-a[1]).map(([w,v])=>`<tr><td>${esc(w[0].toUpperCase()+w.slice(1))}</td><td class="r">${euro(v)}</td></tr>`).join("")||`<tr><td class="sub">Nog niets ontvangen.</td></tr>`}</table></div>
+    <div class="sub">Bedragen zijn wat je per beurt hebt ingevoerd. Het overzicht toont de afgelopen 13 maanden.</div>`;
+  $("#oJaar").onchange=e=>{omzetJaar=+e.target.value;renderOmzet()};
+}
+function renderBedrijf(){
+  const I=S.inst||{};const ro=S.rol!=="beheerder";
+  const f=(n,l,t="text",ph="")=>`<label>${l}<input id="i-${n}" name="${n}" type="${t}" value="${esc(I[n]??"")}" placeholder="${esc(ph)}" ${ro?"disabled":""}></label>`;
+  $("#meerBody").innerHTML=`<form class="form" id="instForm" novalidate style="background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px">
+    <label class="full">Bedrijfsnaam<input id="i-bedrijfsnaam" name="bedrijfsnaam" value="${esc(I.bedrijfsnaam||"")}" required></label>
+    ${f("adres","Adres")}${f("postcode","Postcode")}${f("plaats","Plaats")}${f("telefoon","Telefoon","tel")}${f("email","E-mail","email")}${f("kvk","KvK-nummer")}
+    ${f("iban","IBAN","text","NL00 BANK 0123 4567 89")}${f("btw_nummer","Btw-nummer","text","NL…B01")}
+    <label>Btw-tarief (%)<input id="i-btw" name="btw_tarief" type="number" step="0.1" min="0" value="${esc(I.btw_tarief??21)}"></label>
+    <label>Betaaltermijn (dagen)<input id="i-term" name="betaaltermijn" type="number" min="0" value="${esc(I.betaaltermijn??14)}"></label>
+    <label class="full chk"><input id="i-incl" type="checkbox" name="prijzen_incl_btw" ${I.prijzen_incl_btw!==false?"checked":""}> Mijn prijzen zijn inclusief btw</label>
+    <label class="full chk"><input id="i-kor" type="checkbox" name="kor" ${I.kor?"checked":""}> Ik gebruik de kleineondernemersregeling (KOR), geen btw op de factuur</label>
+    ${f("factuur_prefix","Voorvoegsel factuurnummer","text","bijv. ZS-")}
+    <label>Laatste factuurnummer<input value="${esc(I.factuur_volgnr??0)}" disabled></label>
+    <label class="full">Plaats voor het weerbericht<input id="i-weer" name="weer_plaats" value="${esc(I.weer_plaats||"")}" placeholder="Leeg = de plaats met de meeste klanten"></label>
+    <div class="full"><div class="sub" style="margin-bottom:6px">Logo op de factuur</div><div id="logoBox" class="sub">${I.logo_pad?"Logo laden…":"Nog geen logo."}</div>
+      <div class="row-acts"><label class="btn ghost small" for="logoIn" style="cursor:pointer">${I.logo_pad?"Ander logo":"Logo kiezen"}</label><input id="logoIn" type="file" accept="image/png,image/jpeg" hidden></div></div>
+    <div class="full"><button class="btn" type="submit" id="instSave">Opslaan</button></div>
+  </form>`;
+  if(I.logo_pad)signedUrl(I.logo_pad).then(u=>{const b=$("#logoBox");if(b)b.innerHTML=u?`<img src="${esc(u)}" alt="Logo" style="max-height:60px">`:"Logo kon niet geladen worden."});
+  $("#logoIn").onchange=async e=>{const file=e.target.files&&e.target.files[0];if(!file)return;try{const blob=await compressImage(file,600,.9);const path=`logo/${Date.now()}.jpg`;const {error}=await sb.storage.from("fotos").upload(path,blob,{contentType:"image/jpeg"});if(error)throw error;await run(sb.from("instellingen").update({logo_pad:path}).eq("id",1),"Logo opgeslagen");renderBedrijf()}catch(x){toast("Logo uploaden mislukt: "+x.message)}};
+  $("#instForm").onsubmit=async e=>{e.preventDefault();const fd=Object.fromEntries(new FormData(e.target));
+    const row={bedrijfsnaam:(fd.bedrijfsnaam||"").trim(),adres:fd.adres||"",postcode:(fd.postcode||"").toUpperCase(),plaats:fd.plaats||"",telefoon:fd.telefoon||"",email:fd.email||"",kvk:fd.kvk||"",iban:(fd.iban||"").toUpperCase().replace(/\s+/g," ").trim(),btw_nummer:(fd.btw_nummer||"").toUpperCase(),btw_tarief:+String(fd.btw_tarief).replace(",",".")||0,betaaltermijn:+fd.betaaltermijn||14,prijzen_incl_btw:!!fd.prijzen_incl_btw,kor:!!fd.kor,factuur_prefix:fd.factuur_prefix||"",weer_plaats:(fd.weer_plaats||"").trim()};
+    if(row.weer_plaats!==(I.weer_plaats||"")){if(row.weer_plaats){const g=await geocode(row.weer_plaats);if(!g){toast("Plaats voor het weer niet gevonden");return}row.weer_lat=g.lat;row.weer_lon=g.lon}else{row.weer_lat=null;row.weer_lon=null}S.wx={};wxLoaded=false}
+    await run(sb.from("instellingen").update(row).eq("id",1),"Bedrijfsgegevens opgeslagen");};
+}
+async function renderMws(){
+  const {data,error}=await sb.rpc("medewerkers_lijst");
+  if(error){$("#meerBody").innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
+  $("#meerBody").innerHTML=`
+    <div class="panel" style="flex-direction:column;align-items:stretch">
+      <div><strong>Zo voeg je iemand toe</strong></div>
+      <div class="sub">1. Laat diegene de app openen en op <em>Account aanmaken</em> tikken. 2. Vul hieronder zijn e-mailadres in. Medewerkers zien alleen hun eigen dagroute: adressen, notities en foto's, zonder bedragen. Ze kunnen beurten afvinken of op "niet gelukt" zetten.</div>
+      <form class="form" id="mwForm" novalidate>
+        <label>E-mailadres<input id="mw-mail" name="email" type="email" required></label>
+        <label>Naam<input id="mw-naam" name="naam" required></label>
+        <label class="full">Rol<select id="mw-rol" name="rol"><option value="medewerker">Medewerker (alleen eigen route)</option><option value="beheerder">Beheerder (alles)</option></select></label>
+        <div class="full"><button class="btn" type="submit">Toegang geven</button></div>
+      </form>
+    </div>
+    ${(data||[]).map(m=>`<div class="kl"><div class="main"><div class="name">${esc(m.naam)} ${m.user_id===(user&&user.id)?'<span class="pill p-plain">jij</span>':""}</div><div class="sub">${esc(m.email)} · ${m.rol==="beheerder"?"beheerder":"medewerker"}${m.actief?"":" · uitgezet"}</div></div><div class="meta">${m.actief&&m.user_id!==(user&&user.id)?`<button class="btn danger small" type="button" data-mw-off="${m.user_id}">Toegang intrekken</button>`:""}</div></div>`).join("")}`;
+  $("#mwForm").onsubmit=async e=>{e.preventDefault();const f=e.target;if(!f.checkValidity()){f.reportValidity();return}const fd=Object.fromEntries(new FormData(f));
+    const {data:r,error:er}=await sb.rpc("medewerker_toevoegen",{p_email:fd.email,p_naam:fd.naam,p_rol:fd.rol});
+    if(er){toast(er.message);return}
+    if(r==="niet_gevonden"){toast("Geen account met dit e-mailadres. Laat diegene eerst een account aanmaken in de app.");return}
+    toast(fd.naam+" heeft nu toegang");await reload();renderMws()};
+}
+
+/* ---------- import ---------- */
+let importRows=[];
+const COLS={naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
+function normH(h){return String(h||"").toLowerCase().replace(/[^a-z0-9-]/g,"")}
+function mapHeader(hdr){const m={};hdr.forEach((h,i)=>{const n=normH(h);for(const [k,al] of Object.entries(COLS)){if(m[k]==null&&al.some(a=>n===a.replace(/[^a-z0-9-]/g,"")||n.startsWith(a.replace(/[^a-z0-9-]/g,""))))m[k]=i}});return m}
+function parseCSV(text){const first=text.split(/\r?\n/)[0]||"";const d=first.includes("\t")?"\t":(first.split(";").length>first.split(",").length?";":",");const out=[];let row=[],cur="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===d){row.push(cur);cur=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(cur);out.push(row);row=[];cur=""}else cur+=c}if(cur||row.length){row.push(cur);out.push(row)}return out.filter(r=>r.some(x=>String(x).trim()))}
+function rowsToKlanten(rows){
+  if(!rows.length)return[];
+  let m=mapHeader(rows[0]);let data=rows.slice(1);
+  if(m.naam==null){m={naam:0,adres:1,postcode:2,woonplaats:3,telefoon:4,prijs:5,interval_weken:6,notitie:7};data=rows}
+  const g=(r,k)=>m[k]!=null?String(r[m[k]]??"").trim():"";
+  return data.map(r=>{const pr=Number(g(r,"prijs").replace(/[€\s]/g,"").replace(",","."))||0;const iv=parseInt(g(r,"interval_weken"))||6;
+    return{naam:g(r,"naam"),adres:[g(r,"adres"),g(r,"huisnr")].filter(Boolean).join(" "),postcode:g(r,"postcode").toUpperCase(),woonplaats:g(r,"woonplaats"),telefoon:g(r,"telefoon"),email:g(r,"email"),prijs:pr,interval_weken:Math.min(52,Math.max(1,iv)),notitie:g(r,"notitie")}}).filter(k=>k.naam);
+}
+function renderImport(){
+  $("#meerBody").innerHTML=`
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div class="sub">Kies een Excel- of CSV-bestand, of plak een lijst (bijvoorbeeld gekopieerd uit Excel). De eerste regel mag kolomnamen hebben zoals <strong>naam, adres, postcode, woonplaats, telefoon, prijs, weken, notitie</strong>. Zonder kolomnamen gebruik ik die volgorde.</div>
+      <div class="row-acts"><label class="btn small" for="impFile" style="cursor:pointer">📄 Bestand kiezen</label><input id="impFile" type="file" accept=".csv,.txt,.xlsx,.xls" hidden></div>
+      <textarea id="impText" rows="5" placeholder="Of plak hier je lijst…" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%"></textarea>
+      <div><button class="btn ghost small" type="button" id="impParse">Bekijk wat er geïmporteerd wordt</button></div>
+    </div>
+    <div id="impPrev"></div>`;
+  const show_=()=>{const n=importRows.length;const dup=importRows.filter(r=>S.klanten.some(k=>k.naam.toLowerCase()===r.naam.toLowerCase()&&(k.adres||"").toLowerCase()===r.adres.toLowerCase())).length;
+    $("#impPrev").innerHTML=n?`<div class="section-h">${n} klanten gevonden</div>${dup?`<div class="sub">${dup} daarvan staan er al in (zelfde naam en adres) en worden overgeslagen.</div>`:""}
+      <div class="scrollx"><table class="tbl"><tr><th>Naam</th><th>Adres</th><th>Plaats</th><th>Telefoon</th><th class="r">Prijs</th><th class="r">Weken</th></tr>${importRows.slice(0,25).map(r=>`<tr><td>${esc(r.naam)}</td><td>${esc(r.adres)}</td><td>${esc(r.woonplaats)}</td><td>${esc(r.telefoon)}</td><td class="r">${euro(r.prijs)}</td><td class="r">${r.interval_weken}</td></tr>`).join("")}</table></div>
+      ${n>25?`<div class="sub">…en nog ${n-25} meer.</div>`:""}<div class="row-acts"><button class="btn" type="button" id="impGo">Importeer ${n-dup} klanten</button></div>`:`<div class="empty">Geen klanten herkend. Staat de naam in de eerste kolom?</div>`;
+    const go=$("#impGo");if(go)go.onclick=async()=>{go.disabled=true;const todo=importRows.filter(r=>!S.klanten.some(k=>k.naam.toLowerCase()===r.naam.toLowerCase()&&(k.adres||"").toLowerCase()===r.adres.toLowerCase()));
+      for(let i=0;i<todo.length;i+=200){const {error}=await sb.from("klanten").insert(todo.slice(i,i+200));if(error){toast("Import mislukt: "+error.message);go.disabled=false;return}}
+      importRows=[];await reload();toast(todo.length+" klanten geïmporteerd");meerMode="";tab="klanten";setTab()}};
+  $("#impParse").onclick=()=>{importRows=rowsToKlanten(parseCSV($("#impText").value||""));show_()};
+  $("#impFile").onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
+    try{if(/\.xlsx?$/i.test(f.name)){await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];importRows=rowsToKlanten(XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""}))}else{importRows=rowsToKlanten(parseCSV(await f.text()))}show_()}catch(x){toast("Bestand lezen mislukt: "+x.message)}};
+}
+
+/* ---------- medewerker: eigen route ---------- */
+let crewRows=[];
+async function loadCrew(){
+  $("#cDay").textContent=(crewDay===today()?"Vandaag · ":"")+nice(crewDay);
+  $("#crewList").innerHTML=`<div class="empty">Route laden…</div>`;
+  const {data,error}=await sb.rpc("mijn_route",{p_van:crewDay,p_tot:crewDay});
+  if(error){$("#crewList").innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
+  crewRows=data||[];renderCrew();
+}
+function renderCrew(){
+  const mb=$("#cMaps");const todo=crewRows.filter(r=>r.status!=="gedaan");
+  if(todo.length){const pts=todo.map(r=>[r.adres,r.postcode,r.woonplaats].filter(Boolean).join(", "));mb.href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination="+encodeURIComponent(pts[pts.length-1])+(pts.length>1?"&waypoints="+encodeURIComponent(pts.slice(0,-1).slice(0,9).join("|")):"");mb.hidden=false}else mb.hidden=true;
+  if(!crewRows.length){$("#crewList").innerHTML=`<div class="empty">Geen adressen voor jou op deze dag.</div>`;return}
+  $("#crewList").innerHTML=`<div class="sub">${crewRows.filter(r=>r.status==="gedaan").length} van ${crewRows.length} klaar</div>`+crewRows.map(r=>{const done=r.status==="gedaan";const k={adres:r.adres,postcode:r.postcode,woonplaats:r.woonplaats};
+    return `<div class="item ${done?"done":""}" style="grid-template-columns:auto 1fr">
+      <div class="time">${esc(hm(r.tijd)||"—")}</div>
+      <div class="main"><div class="name">${esc(r.klant_naam)} ${done?'<span class="pill p-ok">Klaar</span>':""}</div>
+        <div class="addr"><a href="${mapsUrl(k)}" target="_blank" rel="noopener">${esc([r.adres,r.woonplaats].filter(Boolean).join(", "))}</a>${r.telefoon?` · <a href="${telHref(r.telefoon)}">${esc(r.telefoon)}</a>`:""}</div>
+        ${r.klant_notitie?`<div class="note">📌 ${esc(r.klant_notitie)}</div>`:""}${r.notitie?`<div class="note">${esc(r.notitie)}</div>`:""}
+        <div class="row-acts">${done?"":`<button class="btn ok small" type="button" data-cklaar="${r.beurt_id}">✓ Klaar</button><button class="btn ghost small" type="button" data-cniet="${r.beurt_id}">Niet gelukt</button>`}${r.foto_pad?`<button class="btn ghost small" type="button" data-cfoto="${esc(r.foto_pad)}" data-cnaam="${esc(r.klant_naam)}">📷 Foto</button>`:""}</div>
+      </div></div>`}).join("");
+}
+function crewNietSheet(id){
+  const r=crewRows.find(x=>x.beurt_id===id);if(!r)return;
+  const nd=n=>{let d=addDays(today()>crewDay?today():crewDay,n);if(parse(d).getDay()===0)d=addDays(d,1);return d};
+  let reden="";
+  sheet("Niet gelukt bij "+r.klant_naam,`
+    <div class="full chips" id="cR">${["Niet thuis","Poort op slot","Regen","Geen toegang","Anders"].map(x=>`<button type="button" data-r="${x}">${x}</button>`).join("")}</div>
+    <div class="full" id="cW" hidden><div class="sub">Opnieuw inplannen:</div><div class="chips" style="margin-top:4px"><button type="button" data-ng="${nd(1)}">Morgen</button><button type="button" data-ng="${nd(3)}">Over 3 dagen</button><button type="button" data-ng="${nd(7)}">Volgende week</button><button type="button" data-ng="">Laat de baas beslissen</button></div></div>`,{extra:close=>{
+      $$("#cR [data-r]").forEach(x=>x.onclick=()=>{reden=x.dataset.r;$$("#cR [data-r]").forEach(y=>y.style.background=y===x?"var(--warn-bg)":"");$("#cW").hidden=false});
+      $$("[data-ng]").forEach(x=>x.onclick=async()=>{close();const {error}=await sb.rpc("niet_gelukt",{p_beurt_id:id,p_reden:reden,p_nieuwe_datum:x.dataset.ng||null});if(error){toast(error.message);return}toast("Genoteerd");loadCrew()});
+  }});
+}
+
 /* ---------- acties ---------- */
 async function swap(id,dir){
   const b=S.beurten.find(x=>x.id===id);const list=bOn(b.datum);const i=list.indexOf(b),j=i+dir;
@@ -803,7 +1242,7 @@ async function swap(id,dir){
 async function planMany(klanten,datum){
   let t=$("#rTijd").value||"08:30";const step=+$("#rMin").value||30;
   const start=bOn(datum).length;
-  const rows=klanten.map((k,i)=>{const r={klant_id:k.id,datum,tijd:t,bedrag:+k.prijs||0,volgorde:start+i};t=addMin(t,step);return r});
+  const rows=klanten.map((k,i)=>{const r={klant_id:k.id,datum,tijd:t,bedrag:+k.prijs||0,volgorde:start+i,medewerker_id:($("#rMw")&&$("#rMw").value)||null};t=addMin(t,step);return r});
   await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" gepland op "+nice(datum));
 }
 
@@ -821,8 +1260,19 @@ document.addEventListener("click",async e=>{
   const d=t.dataset;
   if(d.logout!==undefined){await sb.auth.signOut();return}
   if(t.id==="remindBtn"){remindSheet(sel);return}
+  if(t.id==="shiftBtn"){shiftSheet(sel);return}
+  if(t.id==="closeDayBtn"){dagSheet(sel);return}
+  if(t.id==="meerBack"){meerMode="";renderMeer();return}
+  if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
+  if(d.foto){const k=S.kById[d.foto];if(k&&k.foto_pad)fotoSheet(k.foto_pad,k.naam);return}
+  if(d.factuur){const b=S.beurten.find(x=>x.id===d.factuur);if(b){t.disabled=true;await maakFactuur(b.klant_id,[b.id]);t.disabled=false}return}
+  if(d.factuurKlant){const ids=S.beurten.filter(b=>b.klant_id===d.factuurKlant&&b.status==="gedaan"&&!b.betaald).map(b=>b.id);t.disabled=true;await maakFactuur(d.factuurKlant,ids);t.disabled=false;return}
+  if(d.mwOff){t.disabled=true;const {error}=await sb.rpc("medewerker_uitzetten",{p_user_id:d.mwOff});if(error)toast(error.message);else{toast("Toegang ingetrokken");await reload();renderMws()}return}
+  if(d.cklaar){t.disabled=true;const {data,error}=await sb.rpc("medewerker_klaar",{p_beurt_id:d.cklaar});if(error){toast(error.message);t.disabled=false;return}toast(data?"Klaar ✓ Volgende keer: "+nice(data):"Klaar ✓");loadCrew();return}
+  if(d.cniet){crewNietSheet(d.cniet);return}
+  if(d.cfoto){fotoSheet(d.cfoto,d.cnaam||"Foto");return}
   if(d.tpl!==undefined){$("#sheetRoot").innerHTML="";tplSheet();return}
-  if(d.tab){tab=d.tab;setTab();window.scrollTo(0,0);return}
+  if(d.tab){if(d.tab==="meer")meerMode="";tab=d.tab;setTab();window.scrollTo(0,0);return}
   if(d.mode){mode=d.mode;setTab();return}
   if(d.day){sel=d.day;renderPlanning();return}
   if(d.goto){sel=d.goto;mode="dag";tab="planning";setTab();return}
@@ -869,11 +1319,14 @@ $("#next").onclick=()=>{sel=addDays(sel,mode==="week"?7:1);renderPlanning()};
 $("#todayBtn").onclick=()=>{sel=today();renderPlanning()};
 $("#addBtn").onclick=()=>beurtForm(null,{datum:tab==="planning"?sel:today()});
 $("#addKlant").onclick=()=>klantForm();
+$("#cPrev").onclick=()=>{crewDay=addDays(crewDay,-1);loadCrew()};
+$("#cNext").onclick=()=>{crewDay=addDays(crewDay,1);loadCrew()};
+$("#cToday").onclick=()=>{crewDay=today();loadCrew()};
 $("#zoek").oninput=e=>{zoek=e.target.value;renderKlanten()};
 $("#kFilter").onchange=e=>{kFilter=e.target.value;renderKlanten()};
 ["rDatum","rHorizon"].forEach(id=>$("#"+id).addEventListener("change",renderRoutes));
 // verversen als de app weer in beeld komt (bijv. telefoon uit zak)
-document.addEventListener("visibilitychange",()=>{if(!document.hidden&&user&&!$("#app").hidden)reload()});
+document.addEventListener("visibilitychange",()=>{if(document.hidden||!user)return;if(!$("#app").hidden)reload();else if(!$("#crewApp").hidden)loadCrew()});
 
 /* ---------- formulieren login/setup ---------- */
 $("#setupForm").onsubmit=e=>{e.preventDefault();try{localStorage.setItem("zs-cfg",JSON.stringify({url:$("#setUrl").value.trim().replace(/\/$/,""),key:$("#setKey").value.trim()}))}catch(x){}location.reload()};
