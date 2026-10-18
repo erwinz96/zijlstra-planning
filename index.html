@@ -328,6 +328,7 @@ nav.tabs svg{width:22px;height:22px}
         <option value="">Alle actieve klanten</option>
         <option value="achter">Achterstallig</option>
         <option value="open">Met openstaand bedrag</option>
+        <option value="zakelijk">Zakelijke klanten</option>
         <option value="inactief">Gestopt (inactief)</option>
       </select>
     </div>
@@ -519,7 +520,7 @@ async function reload(){
   $("#loading").hidden=false;
   const from=addDays(today(),-400);
   const [k,b,ins,mw]=await Promise.all([
-    sb.from("klant_overzicht").select("*").order("naam"),
+    sb.from("klanten").select("*").order("naam"),
     sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("tijd",{nullsFirst:false}),
     sb.from("instellingen").select("*").eq("id",1).maybeSingle(),
     sb.rpc("medewerkers_lijst")
@@ -530,8 +531,8 @@ async function reload(){
   const old=await sb.from("beurten").select("*").lt("datum",from).eq("status","gedaan").eq("betaald",false);
   $("#loading").hidden=true;
   if(k.error||b.error){toast("Laden mislukt: "+(k.error||b.error).message);return}
-  S.klanten=k.data||[];S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
   S.beurten=[...(old.data||[]),...(b.data||[])];
+  S.klanten=(k.data||[]).map(x=>deriveKlant(x));S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
   render();
 }
 async function run(promise,okMsg){
@@ -553,6 +554,13 @@ function kStatus(k){
   return{txt:"Volgende rond "+nice(k.aan_de_beurt),cls:"p-plain",late:false};
 }
 const sum=l=>l.reduce((t,b)=>t+(Number(b.bedrag)||0),0);
+// laatste/volgende beurt, aan de beurt en openstaand per klant (berekend uit de geladen beurten)
+function deriveKlant(k){
+  const mine=S.beurten.filter(b=>b.klant_id===k.id);
+  let laatste=null,volgende=null,open=0;
+  mine.forEach(b=>{if(b.status==="gedaan"){if(!laatste||b.datum>laatste)laatste=b.datum;if(!b.betaald)open+=Number(b.bedrag)||0}else if(b.status==="gepland"){if(!volgende||b.datum<volgende)volgende=b.datum}});
+  return {...k,laatste_beurt:laatste,volgende_beurt:volgende,aan_de_beurt:laatste?addDays(laatste,(+k.interval_weken||6)*7):today(),openstaand:Math.round(open*100)/100};
+}
 
 /* ---------- render ---------- */
 function render(){
@@ -628,7 +636,7 @@ function beurtCard(b,list){
       ${b.notitie?`<div class="note">${esc(b.notitie)}</div>`:""}
       <div class="row-acts">
         ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>${b.betaald?"":waBtn(k,"betaling",{datum:b.datum,bedrag:b.bedrag},"","💬 Betaalherinnering")}`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>${b.datum>=t?waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,b.herinnering_op?"💬 Opnieuw":"💬 Herinnering"):""}`}
-        ${done?`<button class="btn ghost small" type="button" data-factuur="${b.id}">📄 Factuur</button>`:""}
+        ${done&&k.zakelijk?`<button class="btn ghost small" type="button" data-factuur="${b.id}">📄 Factuur</button>`:""}
         ${k.foto_pad?`<button class="btn ghost small" type="button" data-foto="${b.klant_id}">📷 Foto</button>`:""}
         <button class="btn ghost small" type="button" data-edit-beurt="${b.id}">Wijzig</button>
       </div>
@@ -656,10 +664,11 @@ function renderKlanten(){
   if(kFilter==="inactief")list=list.filter(k=>!k.actief);else list=list.filter(k=>k.actief);
   if(kFilter==="achter")list=list.filter(k=>kStatus(k).late);
   if(kFilter==="open")list=list.filter(k=>Number(k.openstaand)>0);
+  if(kFilter==="zakelijk")list=list.filter(k=>k.zakelijk);
   if(!S.klanten.length){$("#klantList").innerHTML=`<div class="empty">Nog geen klanten. Voeg je eerste klant toe met adres, telefoon, prijs per wasbeurt en hoe vaak je komt.<br><br><button class="btn small" type="button" data-new-klant>+ Klant toevoegen</button></div>`;return}
   if(!list.length){$("#klantList").innerHTML=`<div class="empty">Geen klanten gevonden.</div>`;return}
   $("#klantList").innerHTML=`<div class="sub">${list.length} klanten</div>`+list.map(k=>{const s=kStatus(k);return `<button class="kl" type="button" data-klant="${k.id}">
-    <div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}${k.telefoon?" · "+esc(k.telefoon):""}</div>
+    <div class="main"><div class="name">${esc(k.naam)}${k.zakelijk?' <span class="pill p-plain">Zakelijk</span>':""}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}${k.telefoon?" · "+esc(k.telefoon):""}</div>
       <div class="sub">Elke ${k.interval_weken} weken · laatst ${nice(k.laatste_beurt)}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div>
     <div class="meta"><strong>${euro(k.prijs)}</strong><span class="pill ${s.cls}">${esc(s.txt)}</span>${Number(k.openstaand)>0?`<span class="pill p-warn">${euro(k.openstaand)} open</span>`:""}</div></button>`}).join("");
 }
@@ -698,7 +707,7 @@ function renderPay(){
   }else if(payMode==="klant"){
     const per={};open.forEach(b=>{(per[b.klant_id]=per[b.klant_id]||[]).push(b)});
     const rows=Object.entries(per).sort((a,b)=>sum(b[1])-sum(a[1]));
-    h=rows.length?rows.map(([id,l])=>{const k=S.kById[id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${l.length} beurt(en): ${l.map(b=>nice(b.datum)).join(", ")}</div></div><div class="meta"><strong>${euro(sum(l))}</strong><div class="row-acts" style="margin:0"><button class="btn ghost small" type="button" data-factuur-klant="${id}">📄 Factuur</button><button class="btn small" type="button" data-paid-all="${id}">Alles betaald</button></div></div></div>`}).join(""):`<div class="empty">Niemand heeft een openstaand bedrag.</div>`;
+    h=rows.length?rows.map(([id,l])=>{const k=S.kById[id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${l.length} beurt(en): ${l.map(b=>nice(b.datum)).join(", ")}</div></div><div class="meta"><strong>${euro(sum(l))}</strong><div class="row-acts" style="margin:0">${k.zakelijk?`<button class="btn ghost small" type="button" data-factuur-klant="${id}">📄 Factuur</button>`:""}<button class="btn small" type="button" data-paid-all="${id}">Alles betaald</button></div></div></div>`}).join(""):`<div class="empty">Niemand heeft een openstaand bedrag.</div>`;
   }else{
     const m0=t.slice(0,8)+"01";
     const got=S.beurten.filter(b=>b.betaald&&(b.betaald_op||b.datum)>=addDays(m0,-62)).sort((a,b)=>(b.betaald_op||b.datum).localeCompare(a.betaald_op||a.datum));
@@ -736,7 +745,9 @@ function klantForm(id){
     <label>Postcode<input id="f-pc" name="postcode" value="${esc(k.postcode)}" placeholder="1234 AB"></label>
     <label>Woonplaats<input id="f-plaats" name="woonplaats" list="plaatsl" value="${esc(k.woonplaats)}" required><datalist id="plaatsl">${plaatsen.map(w=>`<option value="${esc(w)}">`).join("")}</datalist></label>
     <label>Telefoon<input id="f-tel" name="telefoon" type="tel" value="${esc(k.telefoon)}" placeholder="06 …"></label>
-    <label>E-mail (voor factuur)<input id="f-mail" name="email" type="email" value="${esc(k.email)}"></label>
+    <label>E-mail<input id="f-mail" name="email" type="email" value="${esc(k.email)}"></label>
+    <label class="full chk"><input id="f-zak" type="checkbox" name="zakelijk" ${k.zakelijk?"checked":""}> Zakelijke klant (krijgt een factuur)</label>
+    <label class="full" id="tavWrap" ${k.zakelijk?"":"hidden"}>Ter attentie van (optioneel)<input id="f-tav" name="tav" value="${esc(k.tav)}" placeholder="Bijv. afdeling administratie"></label>
     <label>Prijs per wasbeurt (€)<input id="f-prijs" name="prijs" type="number" inputmode="decimal" step="0.01" min="0" required value="${esc(k.prijs)}"></label>
     <label>Elke … weken
       <select id="f-int" name="interval_weken">${[1,2,3,4,5,6,7,8,10,12,13,26,52].map(n=>`<option value="${n}" ${+k.interval_weken===n?"selected":""}>${n} ${n===1?"week":"weken"}</option>`).join("")}</select></label>
@@ -759,7 +770,7 @@ function klantForm(id){
       const onderdelen=ond.map(o=>({naam:String(o.naam).trim(),prijs:Number(String(o.prijs).replace(",","."))||0})).filter(o=>o.naam);
       let prijs=Number(String(fd.prijs).replace(",","."))||0;
       if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
-      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),prijs,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
       const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
       if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
@@ -769,6 +780,7 @@ function klantForm(id){
     extra:()=>{
       $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
       const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
+      $("#f-zak").onchange=e=>{$("#tavWrap").hidden=!e.target.checked};
       const syncPrice=()=>{if(ond.some(o=>String(o.naam).trim())){const tot=ond.reduce((t,o)=>t+(Number(String(o.prijs).replace(",","."))||0),0);$("#f-prijs").value=tot.toFixed(2)}};
       const redraw=()=>{$("#ondList").innerHTML=ondHtml();syncPrice()};
       $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined){ond[+a.op].prijs=e.target.value;syncPrice()}});
@@ -858,7 +870,7 @@ function klaarSheet(id){
       <button class="btn ok" type="button" data-pw="contant">Contant</button>
       <button class="btn ok" type="button" data-pw="tikkie">Tikkie</button>
       <button class="btn ok" type="button" data-pw="pin">Pin</button>
-      <button class="btn ghost full" type="button" data-pw="factuur" style="grid-column:1/-1">Via factuur (nog open)</button>
+      ${k.zakelijk?`<button class="btn ghost full" type="button" data-pw="factuur" style="grid-column:1/-1">Via factuur (nog open)</button>`:""}
     </div>
     <div class="full" style="border-top:1px dashed var(--line);padding-top:10px"><div class="section-h" style="font-size:17px">Niet gelukt?</div>
       <div class="chips" id="ngReden">${["Niet thuis","Poort op slot","Regen","Geen toegang","Anders"].map(r=>`<button type="button" data-r="${r}">${r}</button>`).join("")}</div>
@@ -881,7 +893,7 @@ function klaarSheet(id){
 
 function paySheet(ids,title){
   sheet(title,`<div class="full sub">Hoe is er betaald?</div><div class="full paygrid">
-    ${["contant","tikkie","pin","factuur"].map(w=>`<button class="btn ok" type="button" data-pw="${w}">${w[0].toUpperCase()+w.slice(1)}</button>`).join("")}</div>`,
+    ${["contant","tikkie","pin"].concat(ids.every(id=>{const b=S.beurten.find(x=>x.id===id);return b&&(S.kById[b.klant_id]||{}).zakelijk})?["factuur"]:[]).map(w=>`<button class="btn ok" type="button" data-pw="${w}">${w==="factuur"?"Via factuur betaald":w[0].toUpperCase()+w.slice(1)}</button>`).join("")}</div>`,
   {extra:close=>{document.querySelectorAll("[data-pw]").forEach(x=>x.onclick=async()=>{close();await run(sb.from("beurten").update({betaald:true,betaald_op:today(),betaalwijze:x.dataset.pw}).in("id",ids),"Betaling genoteerd")})}});
 }
 
@@ -1006,7 +1018,8 @@ async function dataUrlFromPath(path){try{const u=await signedUrl(path);if(!u)ret
 async function maakFactuur(klantId,beurtIds){
   const I=S.inst||{};
   if(!I.iban||!I.bedrijfsnaam){toast("Vul eerst je bedrijfsgegevens in (Meer → Bedrijfsgegevens)");tab="meer";meerMode="bedrijf";setTab();return}
-  const k=S.kById[klantId];const rows=beurtIds.map(id=>S.beurten.find(b=>b.id===id)).filter(Boolean).sort((a,b)=>a.datum.localeCompare(b.datum));
+  const k=S.kById[klantId];if(k&&!k.zakelijk){toast("Facturen zijn alleen voor zakelijke klanten. Zet het vinkje bij de klant aan.");return}
+  const rows=beurtIds.map(id=>S.beurten.find(b=>b.id===id)).filter(Boolean).sort((a,b)=>a.datum.localeCompare(b.datum));
   if(!k||!rows.length)return;
   $("#loading").hidden=false;
   try{
@@ -1025,7 +1038,7 @@ async function maakFactuur(klantId,beurtIds){
     doc.setFont("helvetica","bold");doc.setFontSize(22);doc.text("Factuur",L,y);
     y+=10;doc.setFontSize(10);doc.setFont("helvetica","normal");
     const fdat=today(),verv=addDays(fdat,+I.betaaltermijn||14);
-    const kb=[k.naam,k.adres,[k.postcode,k.woonplaats].filter(Boolean).join(" "),k.email].filter(Boolean);
+    const kb=[k.naam,k.tav?"t.a.v. "+k.tav:"",k.adres,[k.postcode,k.woonplaats].filter(Boolean).join(" "),k.email].filter(Boolean);
     kb.forEach((l,n)=>doc.text(l,L,y+n*5));
     [["Factuurnummer",nr],["Factuurdatum",longDate(fdat)],["Vervaldatum",longDate(verv)]].forEach(([a,b],n)=>{doc.setFont("helvetica","bold");doc.text(a,120,y+n*5);doc.setFont("helvetica","normal");doc.text(b,R,y+n*5,{align:"right"})});
     y+=Math.max(kb.length,3)*5+10;
