@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123247">
+<meta name="robots" content="noindex,nofollow">
+<title>Zijlstra Planning</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: werkbus-dashboard — vaste kop, tabbalk onderin op mobiel, weekraster op desktop */
+:root{
+  --bg:#eef3f6; --surface:#fff; --surface2:#e3ebf0; --line:#cdd9e0;
+  --ink:#123247; --muted:#5a6f7b; --accent:#0d6e8a; --accent-ink:#fff;
+  --stripe:#f2b632; --stripe-ink:#2a1e00; --note:#fff4d1; --note-ink:#6b4a00;
+  --ok:#1f8a4c; --ok-bg:#ddf2e5; --warn:#a86500; --warn-bg:#fbeccd; --bad:#b3261e; --bad-bg:#f9dedb;
+  --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --r:10px; color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#0c1820; --surface:#13242e; --surface2:#1a303c; --line:#28404d;
+  --ink:#e4eef3; --muted:#93a9b4; --accent:#4fb6d3; --accent-ink:#06202a;
+  --note:#3a2f12; --note-ink:#f6d98c;
+  --ok:#5fd18f; --ok-bg:#163828; --warn:#f0b454; --warn-bg:#3a2c10; --bad:#ff8a80; --bad-bg:#3d1916;
+  color-scheme:dark}}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink)}
+body{font-family:var(--body);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;padding-bottom:env(safe-area-inset-bottom,0px)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+a{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+.wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* kop */
+header.top{background:#123247;color:#eef3f6;position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top,0px)}
+header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand h1{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:.03em;margin:0;line-height:1;text-transform:uppercase;white-space:nowrap}
+.brand small{display:block;font-size:12px;opacity:.75}
+.hdr-acts{display:flex;gap:8px;align-items:center}
+.stripe{height:6px;background:repeating-linear-gradient(-45deg,#f2b632 0 14px,#123247 14px 28px)}
+.desk-tabs{display:flex;gap:4px}
+.desk-tabs button{background:none;border:0;color:#eef3f6;opacity:.7;padding:8px 12px;border-radius:8px;font-weight:600}
+.desk-tabs button[aria-selected="true"]{opacity:1;background:rgba(255,255,255,.12)}
+@media (max-width:820px){.desk-tabs{display:none}}
+
+.btn{border:0;border-radius:8px;padding:9px 14px;font-weight:600;background:var(--accent);color:var(--accent-ink);white-space:nowrap}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:var(--surface2);color:var(--ink)}
+.btn.small{padding:6px 10px;font-size:13px}
+.btn.yellow{background:var(--stripe);color:var(--stripe-ink)}
+.btn.danger{background:var(--bad-bg);color:var(--bad)}
+.btn.ok{background:var(--ok);color:#fff}
+.btn.link{background:none;color:var(--accent);padding:4px 0}
+.iconbtn{background:var(--surface2);border:0;border-radius:6px;width:30px;height:30px;display:inline-grid;place-items:center;font-weight:700}
+
+/* login & setup */
+.auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
+.auth .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:100%;max-width:380px;overflow:hidden}
+.auth .card .hd{background:#123247;color:#eef3f6;padding:18px 20px}
+.auth .card .hd h1{font-family:var(--display);font-size:28px;margin:0;text-transform:uppercase;letter-spacing:.03em}
+.auth .card .bd{padding:20px;display:flex;flex-direction:column;gap:12px}
+.err{color:var(--bad);font-size:14px}
+.okmsg{color:var(--ok);font-size:14px}
+
+/* samenvatting */
+.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:14px}
+.stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;min-width:0}
+.stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.stat .v{font-family:var(--display);font-weight:700;font-size:26px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .s{font-size:12px;color:var(--muted)}
+.stat.alert .v{color:var(--bad)}
+@media (max-width:560px){.summary{grid-template-columns:repeat(2,1fr)}}
+
+main{padding-block:16px 100px}
+section[data-view]{display:flex;flex-direction:column;gap:12px}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.bar h2{font-family:var(--display);font-size:24px;margin:0;text-transform:uppercase;letter-spacing:.02em}
+.nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.nav .lbl{font-weight:600;min-width:130px;text-align:center}
+.seg{display:inline-flex;background:var(--surface2);border-radius:8px;padding:3px}
+.seg button{border:0;background:none;padding:5px 12px;border-radius:6px;font-weight:600;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+/* week */
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.col{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-height:180px;display:flex;flex-direction:column;min-width:0}
+.col.drop{outline:2px dashed var(--accent);outline-offset:-4px}
+.col .ch{padding:8px 10px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:baseline;gap:4px;cursor:pointer}
+.col .ch .d{font-family:var(--display);font-weight:700;font-size:18px;text-transform:uppercase}
+.col.today .ch .d{color:var(--accent)}
+.col .ch .t{font-size:12px;color:var(--muted);white-space:nowrap}
+.col .cb{padding:6px;display:flex;flex-direction:column;gap:6px;flex:1}
+.mini{background:var(--bg);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:6px;padding:6px 8px;font-size:13px;cursor:grab;min-width:0}
+.mini.done{border-left-color:var(--ok);opacity:.7}
+.mini.late{border-left-color:var(--bad)}
+.mini .n{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini .p{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini.dragging{opacity:.4}
+@media (max-width:820px){
+  .week{grid-template-columns:1fr}
+  .col{min-height:0}
+  .col .cb:empty{display:none}
+}
+
+/* dag */
+.daystrip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.dchip{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 2px;text-align:center;min-width:0}
+.dchip .dn{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dchip .dd{font-family:var(--display);font-size:22px;font-weight:700;line-height:1.1}
+.dchip .dc{font-size:11px;color:var(--muted);min-height:15px}
+.dchip.today .dd{color:var(--accent)}
+.dchip[aria-pressed="true"]{background:#123247;color:#eef3f6;border-color:#123247}
+.dchip[aria-pressed="true"] .dn,.dchip[aria-pressed="true"] .dc{color:inherit;opacity:.8}
+.group-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:6px 2px 2px;border-bottom:1px dashed var(--line)}
+.list{display:flex;flex-direction:column;gap:8px}
+.item{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start}
+.item.done{opacity:.8}
+.item .ord{display:flex;flex-direction:column;gap:4px;align-items:center}
+.item .time{font-family:var(--display);font-weight:700;font-size:18px;line-height:1.1;min-width:46px;text-align:center}
+.item .main{min-width:0}
+.name{font-weight:600}
+.addr{color:var(--muted);font-size:13px;overflow-wrap:anywhere}
+.note{background:var(--note);color:var(--note-ink);border-radius:6px;padding:4px 8px;font-size:13px;margin-top:6px;display:inline-block}
+.item .side{display:flex;flex-direction:column;gap:6px;align-items:flex-end}
+.price{font-weight:600;white-space:nowrap}
+.row-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.pill{display:inline-block;font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;border-radius:999px;padding:2px 8px;white-space:nowrap}
+.p-ok{background:var(--ok-bg);color:var(--ok)}
+.p-warn{background:var(--warn-bg);color:var(--warn)}
+.p-bad{background:var(--bad-bg);color:var(--bad)}
+.p-plain{background:var(--surface2);color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:28px 12px;border:1px dashed var(--line);border-radius:var(--r)}
+.search{width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--line);background:var(--surface)}
+.kl{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px;display:flex;justify-content:space-between;gap:10px;text-align:left;width:100%}
+.kl .main{min-width:0}
+.kl .meta{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex:none}
+.sub{font-size:13px;color:var(--muted)}
+.panel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px}
+.panel input,.panel select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.total{font-family:var(--display);font-size:30px;font-weight:700}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters select{padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+
+/* tabbalk mobiel */
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);z-index:6;padding-bottom:env(safe-area-inset-bottom,0px)}
+nav.tabs .wrap{display:grid;grid-template-columns:repeat(4,1fr)}
+nav.tabs button{background:none;border:0;padding:10px 4px 12px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--muted)}
+nav.tabs button[aria-selected="true"]{color:var(--accent)}
+nav.tabs svg{width:22px;height:22px}
+@media (min-width:821px){nav.tabs{display:none}main{padding-bottom:40px}}
+
+/* sheets */
+.sheet-bg{position:fixed;inset:0;background:rgba(6,20,28,.55);z-index:20;display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:16px 16px 0 0;max-height:92vh;overflow:auto;padding:18px max(16px,env(safe-area-inset-left,0px)) calc(18px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-right,0px))}
+@media (min-width:640px){.sheet-bg{align-items:center}.sheet{border-radius:16px}}
+.sheet h3{font-family:var(--display);font-size:24px;text-transform:uppercase;margin:0 0 12px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.form label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;min-width:0}
+.form .full{grid-column:1/-1}
+.form input,.form select,.form textarea,.auth input{padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);font-size:16px;text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);width:100%}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px}
+.chk{flex-direction:row!important;align-items:center;gap:8px}
+.chk input{width:auto!important}
+.sheet .foot{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;margin-top:16px}
+.sheet .foot .right{display:flex;gap:8px;margin-left:auto}
+.confirm{margin-top:10px;padding:10px;border-radius:8px;background:var(--bad-bg);color:var(--bad);font-size:14px;display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.hist{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.hist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:4px 0}
+.paygrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:#123247;color:#eef3f6;padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
+.loading{position:fixed;top:calc(env(safe-area-inset-top,0px) + 60px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;z-index:7}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+</style>
+</head>
+<body>
+
+<!-- ============ INSTELLEN (alleen eerste keer, als URL/sleutel ontbreekt) ============ -->
+<div class="auth" id="setupScreen" hidden>
+  <div class="card">
+    <div class="hd"><h1>Koppelen</h1><div>Supabase-gegevens invullen</div></div>
+    <form class="bd" id="setupForm">
+      <div class="sub">Je vindt deze in Supabase → Project Settings → API. Je hoeft dit maar één keer per apparaat te doen, of je zet ze vast in de code (zie LEESMIJ).</div>
+      <label class="sub" for="setUrl">Project URL</label>
+      <input id="setUrl" type="url" placeholder="https://xxxx.supabase.co" required>
+      <label class="sub" for="setKey">Publishable / anon key</label>
+      <input id="setKey" type="text" placeholder="sb_publishable_… of eyJ…" required>
+      <button class="btn" type="submit">Opslaan</button>
+    </form>
+  </div>
+</div>
+
+<!-- ============ INLOGGEN ============ -->
+<div class="auth" id="loginScreen" hidden>
+  <div class="card">
+    <div class="hd"><h1>Zijlstra Schoonmaak</h1><div>Planning · alleen voor medewerkers</div></div>
+    <form class="bd" id="loginForm">
+      <label class="sub" for="lEmail">E-mailadres</label>
+      <input id="lEmail" type="email" autocomplete="username" required>
+      <label class="sub" for="lPass">Wachtwoord</label>
+      <input id="lPass" type="password" autocomplete="current-password" required>
+      <button class="btn" type="submit" id="lBtn">Inloggen</button>
+      <button class="btn link" type="button" id="forgotBtn">Wachtwoord vergeten?</button>
+      <button class="btn ghost" type="button" id="signupBtn">Account aanmaken</button>
+      <div class="sub">Een nieuw account ziet pas iets als de beheerder het toegang geeft.</div>
+      <div class="err" id="lErr"></div>
+      <div class="okmsg" id="lOk"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ NIEUW WACHTWOORD (na resetlink) ============ -->
+<div class="auth" id="resetScreen" hidden>
+  <div class="card">
+    <div class="hd"><h1>Nieuw wachtwoord</h1></div>
+    <form class="bd" id="resetForm">
+      <label class="sub" for="rPass">Nieuw wachtwoord (minimaal 8 tekens)</label>
+      <input id="rPass" type="password" minlength="8" autocomplete="new-password" required>
+      <button class="btn" type="submit">Opslaan</button>
+      <div class="err" id="rErr"></div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ GEEN TOEGANG ============ -->
+<div class="auth" id="noAccess" hidden>
+  <div class="card">
+    <div class="hd"><h1>Geen toegang</h1></div>
+    <div class="bd">
+      <div>Je bent ingelogd als <strong id="naEmail"></strong>, maar dit account staat nog niet op de lijst met medewerkers.</div>
+      <div class="sub">Vraag de beheerder om je toe te voegen in Supabase (tabel <em>medewerkers</em>).</div>
+      <button class="btn ghost" type="button" data-logout>Uitloggen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app" hidden>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
+      <div><h1>Zijlstra Planning</h1><small id="whoami"></small></div>
+    </div>
+    <div class="desk-tabs" role="tablist">
+      <button data-tab="planning" aria-selected="true" type="button">Planning</button>
+      <button data-tab="klanten" aria-selected="false" type="button">Klanten</button>
+      <button data-tab="routes" aria-selected="false" type="button">Routes</button>
+      <button data-tab="betalingen" aria-selected="false" type="button">Betalingen</button>
+    </div>
+    <div class="hdr-acts">
+      <button class="btn yellow small" id="addBtn" type="button">+ Beurt</button>
+      <button class="btn ghost small" type="button" data-logout title="Uitloggen" aria-label="Uitloggen">⎋</button>
+    </div>
+  </div>
+</header>
+<div class="stripe" aria-hidden="true"></div>
+<div class="loading" id="loading" hidden>Bijwerken…</div>
+
+<div class="wrap"><div class="summary" id="summary"></div></div>
+
+<main class="wrap">
+  <!-- PLANNING -->
+  <section data-view="planning">
+    <div class="bar">
+      <div class="nav">
+        <div class="seg" role="group" aria-label="Weergave">
+          <button type="button" data-mode="dag" aria-pressed="true">Dag</button>
+          <button type="button" data-mode="week" aria-pressed="false">Week</button>
+        </div>
+        <button class="btn ghost small" id="prev" type="button" aria-label="Vorige">‹</button>
+        <span class="lbl" id="navLbl"></span>
+        <button class="btn ghost small" id="next" type="button" aria-label="Volgende">›</button>
+        <button class="btn ghost small" id="todayBtn" type="button">Vandaag</button>
+      </div>
+    </div>
+    <div id="dayView">
+      <div class="daystrip" id="dayStrip"></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="list" id="dayList" style="margin-top:8px"></div>
+    </div>
+    <div id="weekView" hidden>
+      <div class="sub" style="margin-bottom:8px">Sleep een beurt naar een andere dag om te verplaatsen. Op de telefoon: tik op de beurt → Verplaatsen.</div>
+      <div class="week" id="weekGrid"></div>
+    </div>
+  </section>
+
+  <!-- KLANTEN -->
+  <section data-view="klanten" hidden>
+    <div class="bar"><h2>Klanten</h2><button class="btn small" id="addKlant" type="button">+ Klant</button></div>
+    <div class="filters">
+      <input class="search" id="zoek" type="search" placeholder="Zoek op naam, adres, plaats of telefoon" style="flex:1;min-width:200px">
+      <select id="kFilter" aria-label="Filter">
+        <option value="">Alle actieve klanten</option>
+        <option value="achter">Achterstallig</option>
+        <option value="open">Met openstaand bedrag</option>
+        <option value="inactief">Gestopt (inactief)</option>
+      </select>
+    </div>
+    <div class="list" id="klantList"></div>
+  </section>
+
+  <!-- ROUTES -->
+  <section data-view="routes" hidden>
+    <div class="bar"><h2>Routes per woonplaats</h2></div>
+    <div class="panel">
+      <label class="sub" for="rDatum">Inplannen op</label><input type="date" id="rDatum">
+      <label class="sub" for="rTijd">vanaf</label><input type="time" id="rTijd" value="08:30" step="300">
+      <label class="sub" for="rMin">min. per adres</label>
+      <select id="rMin"><option>15</option><option>20</option><option selected>30</option><option>45</option><option>60</option></select>
+      <label class="sub" for="rHorizon">aan de beurt binnen</label>
+      <select id="rHorizon"><option value="7">7 dagen</option><option value="14" selected>14 dagen</option><option value="30">30 dagen</option></select>
+    </div>
+    <div class="list" id="routeList"></div>
+  </section>
+
+  <!-- BETALINGEN -->
+  <section data-view="betalingen" hidden>
+    <div class="bar"><h2>Betalingen</h2><div><span class="sub">Openstaand </span><span class="total" id="openTotal"></span></div></div>
+    <div class="seg" role="group" aria-label="Betalingen weergave">
+      <button type="button" data-pay="open" aria-pressed="true">Openstaand</button>
+      <button type="button" data-pay="klant" aria-pressed="false">Per klant</button>
+      <button type="button" data-pay="ontvangen" aria-pressed="false">Ontvangen</button>
+    </div>
+    <div class="list" id="payList"></div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Onderdelen">
+  <div class="wrap" role="tablist">
+    <button role="tab" data-tab="planning" aria-selected="true" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Planning</button>
+    <button role="tab" data-tab="klanten" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z"/><path d="M9 21v-6h6v6"/></svg>Klanten</button>
+    <button role="tab" data-tab="routes" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="18" r="2.5"/><circle cx="18" cy="6" r="2.5"/><path d="M8.5 18H15a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6.5"/></svg>Routes</button>
+    <button role="tab" data-tab="betalingen" aria-selected="false" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h4"/></svg>Betalingen</button>
+  </div>
+</nav>
+</div>
+
+<div id="sheetRoot"></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* =====================================================================
+   INSTELLINGEN — vul hier je Supabase-gegevens in (zie LEESMIJ.md).
+   Laat ze leeg om ze bij de eerste keer openen in te vullen.
+   De publishable/anon key mag openbaar zijn; de beveiliging zit in de database.
+   ===================================================================== */
+const SUPABASE_URL = "https://vvopwiugombcnbjjwrne.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2b3B3aXVnb21iY25iamp3cm5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTIzNTE1MzYsImV4cCI6MjEwNzkyNzUzNn0.HlAMD3BTQRI49eusXW252UsgrnG2gq1HNc8vHdD-o00";
+
+(function(){
+"use strict";
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const DN=["zo","ma","di","wo","do","vr","za"], DNL=["zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"];
+const MN=["jan","feb","mrt","apr","mei","jun","jul","aug","sep","okt","nov","dec"];
+const pad=n=>String(n).padStart(2,"0");
+const iso=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const parse=s=>{const[y,m,d]=s.split("-").map(Number);return new Date(y,m-1,d,12)};
+const addDays=(s,n)=>{const d=parse(s);d.setDate(d.getDate()+n);return iso(d)};
+const today=()=>iso(new Date());
+const monday=s=>addDays(s,-((parse(s).getDay()+6)%7));
+const nice=s=>{if(!s)return"—";const d=parse(s);return DN[d.getDay()]+" "+d.getDate()+" "+MN[d.getMonth()]};
+const daysBetween=(a,b)=>Math.round((parse(b)-parse(a))/864e5);
+const euro=n=>"€ "+(Number(n)||0).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+const hm=t=>t?String(t).slice(0,5):"";
+const weekNr=s=>{const d=parse(s);const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);const y0=new Date(Date.UTC(t.getUTCFullYear(),0,1));return Math.ceil(((t-y0)/864e5+1)/7)};
+const addMin=(t,m)=>{let[h,mi]=(t||"08:00").split(":").map(Number);mi+=m;h+=Math.floor(mi/60);mi=((mi%60)+60)%60;return pad(Math.min(h,23))+":"+pad(mi)};
+const mapsUrl=k=>"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent([k.adres,k.postcode,k.woonplaats].filter(Boolean).join(", "));
+const telHref=t=>"tel:"+String(t||"").replace(/[^\d+]/g,"");
+
+/* ---------- configuratie ---------- */
+function getCfg(){
+  if(SUPABASE_URL&&SUPABASE_KEY)return{url:SUPABASE_URL,key:SUPABASE_KEY};
+  try{const c=JSON.parse(localStorage.getItem("zs-cfg")||"null");if(c&&c.url&&c.key)return c}catch(e){}
+  return null;
+}
+function show(id){["setupScreen","loginScreen","resetScreen","noAccess","app"].forEach(x=>$("#"+x).hidden=x!==id)}
+
+let sb=null, user=null;
+const S={klanten:[],beurten:[],kById:{}};
+let tab="planning", mode="dag", sel=today(), payMode="open", zoek="", kFilter="";
+
+/* ---------- start ---------- */
+async function boot(){
+  const cfg=getCfg();
+  if(!cfg){show("setupScreen");return}
+  if(!window.supabase){document.body.innerHTML='<p style="padding:24px">Kon de Supabase-bibliotheek niet laden. Controleer je internetverbinding en herlaad de pagina.</p>';return}
+  sb=window.supabase.createClient(cfg.url,cfg.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  sb.auth.onAuthStateChange((ev,session)=>{
+    if(ev==="PASSWORD_RECOVERY"){show("resetScreen");return}
+    if(ev==="SIGNED_OUT"){user=null;show("loginScreen")}
+  });
+  const {data}=await sb.auth.getSession();
+  if(location.hash.includes("type=recovery"))return; // reset-scherm wordt via event getoond
+  if(data.session){user=data.session.user;await enter()}else show("loginScreen");
+}
+
+async function enter(){
+  const {data:ok,error}=await sb.rpc("is_medewerker");
+  if(error){toast("Database niet bereikbaar: "+error.message);show("loginScreen");return}
+  if(!ok){$("#naEmail").textContent=user.email;show("noAccess");return}
+  const {data:me}=await sb.from("medewerkers").select("naam").eq("user_id",user.id).maybeSingle();
+  $("#whoami").textContent=(me&&me.naam)||user.email;
+  show("app");
+  try{const v=localStorage.getItem("zs-tab");if(v)tab=v;const m=localStorage.getItem("zs-mode");if(m)mode=m}catch(e){}
+  if(!$("#rDatum").value)$("#rDatum").value=addDays(today(),1);
+  setTab();
+  await reload();
+}
+
+/* ---------- data ---------- */
+async function reload(){
+  $("#loading").hidden=false;
+  const from=addDays(today(),-400);
+  const [k,b]=await Promise.all([
+    sb.from("klant_status").select("*").order("naam"),
+    sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("tijd",{nullsFirst:false})
+  ]);
+  // oudere onbetaalde beurten ook meenemen
+  const old=await sb.from("beurten").select("*").lt("datum",from).eq("status","gedaan").eq("betaald",false);
+  $("#loading").hidden=true;
+  if(k.error||b.error){toast("Laden mislukt: "+(k.error||b.error).message);return}
+  S.klanten=k.data||[];S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
+  S.beurten=[...(old.data||[]),...(b.data||[])];
+  render();
+}
+async function run(promise,okMsg){
+  const {data,error}=await promise;
+  if(error){toast(error.message.includes("row-level")?"Geen rechten om dit op te slaan.":"Opslaan mislukt: "+error.message);return null}
+  if(okMsg)toast(okMsg);
+  await reload();
+  return data??true;
+}
+
+/* ---------- afgeleiden ---------- */
+const bOn=d=>S.beurten.filter(b=>b.datum===d&&b.status!=="overgeslagen").sort((a,b)=>(a.volgorde-b.volgorde)||hm(a.tijd).localeCompare(hm(b.tijd)));
+function kStatus(k){
+  const t=today();
+  if(!k.actief)return{txt:"Gestopt",cls:"p-plain",late:false};
+  if(k.volgende_beurt)return{txt:(k.volgende_beurt<t?"Niet afgerond ":"Gepland ")+nice(k.volgende_beurt),cls:k.volgende_beurt<t?"p-bad":"p-ok",late:false};
+  if(k.aan_de_beurt<t)return{txt:"Achterstallig sinds "+nice(k.aan_de_beurt),cls:"p-bad",late:true};
+  if(k.aan_de_beurt<=addDays(t,14))return{txt:"Aan de beurt "+nice(k.aan_de_beurt),cls:"p-warn",late:false};
+  return{txt:"Volgende rond "+nice(k.aan_de_beurt),cls:"p-plain",late:false};
+}
+const sum=l=>l.reduce((t,b)=>t+(Number(b.bedrag)||0),0);
+
+/* ---------- render ---------- */
+function render(){
+  renderSummary();
+  if(tab==="planning")renderPlanning();
+  if(tab==="klanten")renderKlanten();
+  if(tab==="routes")renderRoutes();
+  if(tab==="betalingen")renderPay();
+}
+function renderSummary(){
+  const t=today(),ws=monday(t),we=addDays(ws,6);
+  const vandaag=bOn(t);
+  const week=S.beurten.filter(b=>b.datum>=ws&&b.datum<=we&&b.status!=="overgeslagen");
+  const open=S.beurten.filter(b=>b.status==="gedaan"&&!b.betaald);
+  const achter=S.klanten.filter(k=>kStatus(k).late).length;
+  const klaar=vandaag.filter(b=>b.status==="gedaan").length;
+  $("#summary").innerHTML=
+   `<div class="stat"><div class="k">Vandaag</div><div class="v">${klaar}/${vandaag.length}</div><div class="s">klaar · ${euro(sum(vandaag))}</div></div>`+
+   `<div class="stat"><div class="k">Week ${weekNr(t)}</div><div class="v">${week.length}</div><div class="s">beurten · ${euro(sum(week))}</div></div>`+
+   `<div class="stat"><div class="k">Openstaand</div><div class="v">${euro(sum(open))}</div><div class="s">${open.length} niet betaald</div></div>`+
+   `<div class="stat ${achter?"alert":""}"><div class="k">Achterstallig</div><div class="v">${achter}</div><div class="s">klanten zonder beurt</div></div>`;
+}
+
+function renderPlanning(){
+  $$("[data-mode]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.mode===mode));
+  $("#dayView").hidden=mode!=="dag";$("#weekView").hidden=mode!=="week";
+  const ws=monday(sel);
+  $("#navLbl").textContent=mode==="week"?"Week "+weekNr(ws)+" · "+parse(ws).getDate()+" "+MN[parse(ws).getMonth()]+" – "+parse(addDays(ws,6)).getDate()+" "+MN[parse(addDays(ws,6)).getMonth()]:"Week "+weekNr(ws);
+  mode==="dag"?renderDay():renderWeek();
+}
+function renderDay(){
+  const ws=monday(sel),t=today();
+  let h="";
+  for(let i=0;i<7;i++){const d=addDays(ws,i),dt=parse(d),n=bOn(d).length;
+    h+=`<button class="dchip ${d===t?"today":""}" type="button" data-day="${d}" aria-pressed="${d===sel}"><div class="dn">${DN[dt.getDay()]}</div><div class="dd">${dt.getDate()}</div><div class="dc">${n?n+" adr.":""}</div></button>`}
+  $("#dayStrip").innerHTML=h;
+  const list=bOn(sel);
+  $("#dayTitle").textContent=(sel===t?"Vandaag · ":"")+DNL[parse(sel).getDay()]+" "+parse(sel).getDate()+" "+MN[parse(sel).getMonth()];
+  $("#dayTotal").textContent=list.length?list.length+" adressen · "+euro(sum(list)):"";
+  // Route in Google Maps (max ~10 tussenstops)
+  const todo=list.filter(b=>b.status!=="gedaan").map(b=>S.kById[b.klant_id]).filter(Boolean);
+  const mb=$("#mapsDay");
+  if(todo.length){
+    const pts=todo.map(k=>[k.adres,k.postcode,k.woonplaats].filter(Boolean).join(", "));
+    const dest=pts[pts.length-1],way=pts.slice(0,-1).slice(0,9);
+    mb.href="https://www.google.com/maps/dir/?api=1&travelmode=driving&destination="+encodeURIComponent(dest)+(way.length?"&waypoints="+encodeURIComponent(way.join("|")):"");
+    mb.hidden=false;
+  }else mb.hidden=true;
+  if(!list.length){$("#dayList").innerHTML=`<div class="empty">Geen beurten op deze dag.<br><br><button class="btn small" type="button" data-new-beurt="${sel}">+ Beurt op ${nice(sel)}</button> <button class="btn ghost small" type="button" data-tab="routes">Plan via Routes</button></div>`;return}
+  const groups=[];list.forEach(b=>{const k=S.kById[b.klant_id];const w=(k&&k.woonplaats)||"Onbekend";let g=groups.find(x=>x.w===w);if(!g){g={w,items:[]};groups.push(g)}g.items.push(b)});
+  $("#dayList").innerHTML=groups.map(g=>`<div class="group-h"><span>${esc(g.w)}</span><span>${g.items.length} adr. · ${euro(sum(g.items))}</span></div>`+g.items.map((b)=>beurtCard(b,list)).join("")).join("");
+}
+function beurtCard(b,list){
+  const k=S.kById[b.klant_id]||{naam:"Verwijderde klant"};
+  const done=b.status==="gedaan", t=today();
+  const st=done?(b.betaald?`<span class="pill p-ok">Betaald</span>`:`<span class="pill p-warn">Te betalen</span>`):(b.datum<t?`<span class="pill p-bad">Niet afgerond</span>`:`<span class="pill p-plain">Gepland</span>`);
+  const idx=list.indexOf(b);
+  return `<div class="item ${done?"done":""}">
+    <div class="ord"><div class="time">${esc(hm(b.tijd)||"—")}</div>
+      <button class="iconbtn" type="button" data-up="${b.id}" ${idx<=0?"disabled":""} aria-label="Eerder in route">↑</button>
+      <button class="iconbtn" type="button" data-down="${b.id}" ${idx>=list.length-1?"disabled":""} aria-label="Later in route">↓</button></div>
+    <div class="main">
+      <div class="name">${esc(k.naam)}</div>
+      <div class="addr"><a href="${mapsUrl(k)}" target="_blank" rel="noopener">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}</a>${k.telefoon?` · <a href="${telHref(k.telefoon)}">${esc(k.telefoon)}</a>`:""}</div>
+      ${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}
+      ${b.notitie?`<div class="note">${esc(b.notitie)}</div>`:""}
+      <div class="row-acts">
+        ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>`}
+        <button class="btn ghost small" type="button" data-edit-beurt="${b.id}">Wijzig</button>
+      </div>
+    </div>
+    <div class="side"><span class="price">${euro(b.bedrag)}</span>${st}</div>
+  </div>`;
+}
+function renderWeek(){
+  const ws=monday(sel),t=today();
+  let h="";
+  for(let i=0;i<7;i++){
+    const d=addDays(ws,i),dt=parse(d),list=bOn(d);
+    h+=`<div class="col ${d===t?"today":""}" data-drop="${d}">
+      <div class="ch" data-goto="${d}"><span class="d">${DN[dt.getDay()]} ${dt.getDate()}</span><span class="t">${list.length?list.length+" · "+euro(sum(list)):""}</span></div>
+      <div class="cb">${list.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="mini ${b.status==="gedaan"?"done":(b.datum<t?"late":"")}" draggable="true" data-drag="${b.id}" data-edit-beurt="${b.id}" role="button" tabindex="0"><div class="n">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="p">${esc(k.woonplaats||"")}${k.notitie?" · 📌":""}</div></div>`}).join("")}</div>
+    </div>`;
+  }
+  $("#weekGrid").innerHTML=h;
+}
+
+function renderKlanten(){
+  const q=zoek.trim().toLowerCase();
+  let list=S.klanten.filter(k=>!q||[k.naam,k.adres,k.postcode,k.woonplaats,k.telefoon].join(" ").toLowerCase().includes(q));
+  if(kFilter==="inactief")list=list.filter(k=>!k.actief);else list=list.filter(k=>k.actief);
+  if(kFilter==="achter")list=list.filter(k=>kStatus(k).late);
+  if(kFilter==="open")list=list.filter(k=>Number(k.openstaand)>0);
+  if(!S.klanten.length){$("#klantList").innerHTML=`<div class="empty">Nog geen klanten. Voeg je eerste klant toe met adres, telefoon, prijs per wasbeurt en hoe vaak je komt.<br><br><button class="btn small" type="button" data-new-klant>+ Klant toevoegen</button></div>`;return}
+  if(!list.length){$("#klantList").innerHTML=`<div class="empty">Geen klanten gevonden.</div>`;return}
+  $("#klantList").innerHTML=`<div class="sub">${list.length} klanten</div>`+list.map(k=>{const s=kStatus(k);return `<button class="kl" type="button" data-klant="${k.id}">
+    <div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}${k.telefoon?" · "+esc(k.telefoon):""}</div>
+      <div class="sub">Elke ${k.interval_weken} weken · laatst ${nice(k.laatste_beurt)}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div>
+    <div class="meta"><strong>${euro(k.prijs)}</strong><span class="pill ${s.cls}">${esc(s.txt)}</span>${Number(k.openstaand)>0?`<span class="pill p-warn">${euro(k.openstaand)} open</span>`:""}</div></button>`}).join("");
+}
+
+function renderRoutes(){
+  const t=today(),horizon=addDays(t,+$("#rHorizon").value||14),datum=$("#rDatum").value||addDays(t,1);
+  const due=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon);
+  const planned=bOn(datum);
+  let h="";
+  if(planned.length){
+    const per={};planned.forEach(b=>{const w=(S.kById[b.klant_id]||{}).woonplaats||"Onbekend";per[w]=(per[w]||0)+1});
+    h+=`<div class="panel"><span>Al gepland op <strong>${nice(datum)}</strong>: ${planned.length} adressen (${Object.entries(per).map(([w,n])=>esc(w)+" "+n).join(", ")}).</span><button class="btn ghost small" type="button" data-goto="${datum}">Bekijk dag</button></div>`;
+  }
+  if(!due.length){$("#routeList").innerHTML=h+`<div class="empty">Iedereen die binnen ${$("#rHorizon").value} dagen aan de beurt is, staat al ingepland.</div>`;return}
+  const groups={};due.forEach(k=>{const w=k.woonplaats||"Onbekend";(groups[w]=groups[w]||[]).push(k)});
+  h+=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).map(([w,items])=>{
+    items.sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
+    return `<div class="group-h"><span>${esc(w)} · ${items.length} klanten · ${euro(items.reduce((t,k)=>t+(+k.prijs||0),0))}</span><button class="btn small" type="button" data-plan-plaats="${esc(w)}">Plan alle op ${nice(datum)}</button></div>`+
+      items.map(k=>{const s=kStatus(k);return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.adres||"")}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div><div class="meta"><span class="pill ${s.cls}">${esc(s.txt)}</span><button class="btn ghost small" type="button" data-plan-klant="${k.id}">Plan in</button></div></div>`}).join("");
+  }).join("");
+  $("#routeList").innerHTML=h;
+}
+
+function renderPay(){
+  $$("[data-pay]").forEach(b=>b.setAttribute("aria-pressed",b.dataset.pay===payMode));
+  const t=today();
+  const open=S.beurten.filter(b=>b.status==="gedaan"&&!b.betaald).sort((a,b)=>a.datum.localeCompare(b.datum));
+  $("#openTotal").textContent=euro(sum(open));
+  let h="";
+  if(payMode==="open"){
+    h=open.length?open.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};const d=daysBetween(b.datum,t);
+      return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">Gewassen ${nice(b.datum)} · ${esc(k.woonplaats||"")}${k.telefoon?` · <a href="${telHref(k.telefoon)}">${esc(k.telefoon)}</a>`:""}</div></div><div class="meta"><strong>${euro(b.bedrag)}</strong><span class="pill ${d>30?"p-bad":d>14?"p-warn":"p-plain"}">${d} dagen</span><button class="btn small" type="button" data-paid="${b.id}">€ Betaald</button></div></div>`}).join(""):`<div class="empty">Alles is betaald. 🎉</div>`;
+  }else if(payMode==="klant"){
+    const per={};open.forEach(b=>{(per[b.klant_id]=per[b.klant_id]||[]).push(b)});
+    const rows=Object.entries(per).sort((a,b)=>sum(b[1])-sum(a[1]));
+    h=rows.length?rows.map(([id,l])=>{const k=S.kById[id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${l.length} beurt(en): ${l.map(b=>nice(b.datum)).join(", ")}</div></div><div class="meta"><strong>${euro(sum(l))}</strong><button class="btn small" type="button" data-paid-all="${id}">Alles betaald</button></div></div>`}).join(""):`<div class="empty">Niemand heeft een openstaand bedrag.</div>`;
+  }else{
+    const m0=t.slice(0,8)+"01";
+    const got=S.beurten.filter(b=>b.betaald&&(b.betaald_op||b.datum)>=addDays(m0,-62)).sort((a,b)=>(b.betaald_op||b.datum).localeCompare(a.betaald_op||a.datum));
+    const months={};got.forEach(b=>{const key=(b.betaald_op||b.datum).slice(0,7);(months[key]=months[key]||[]).push(b)});
+    h=Object.keys(months).length?Object.entries(months).map(([m,l])=>{const [y,mm]=m.split("-");return `<div class="group-h"><span>${MN[+mm-1]} ${y}</span><span>${euro(sum(l))}</span></div>`+l.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">Betaald ${nice(b.betaald_op||b.datum)}${b.betaalwijze?" · "+esc(b.betaalwijze):""}</div></div><div class="meta"><strong>${euro(b.bedrag)}</strong></div></div>`}).join("")}).join(""):`<div class="empty">Nog geen ontvangen betalingen.</div>`;
+  }
+  $("#payList").innerHTML=h;
+}
+
+/* ---------- sheets ---------- */
+function sheet(title,body,{onSave,onDelete,saveLabel="Opslaan",extra}={}){
+  $("#sheetRoot").innerHTML=`<div class="sheet-bg" id="sbg"><div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}"><h3>${esc(title)}</h3><form class="form" id="sf" novalidate>${body}</form><div id="conf"></div>
+   <div class="foot">${onDelete?`<button class="btn danger" type="button" id="sdel">Verwijderen</button>`:""}<div class="right"><button class="btn ghost" type="button" id="scancel">${onSave?"Annuleren":"Sluiten"}</button>${onSave?`<button class="btn" type="button" id="ssave">${esc(saveLabel)}</button>`:""}</div></div></div></div>`;
+  const close=()=>{$("#sheetRoot").innerHTML=""};
+  $("#scancel").onclick=close;
+  $("#sbg").addEventListener("click",e=>{if(e.target.id==="sbg")close()});
+  const doSave=async()=>{const f=$("#sf");if(!f.checkValidity()){f.reportValidity();return}const btn=$("#ssave");btn.disabled=true;const fd=Object.fromEntries(new FormData(f));const r=await onSave(fd);if(r!==false)close();else btn.disabled=false};
+  if(onSave){$("#ssave").onclick=doSave;$("#sf").onsubmit=e=>{e.preventDefault();doSave()}}
+  if(onDelete)$("#sdel").onclick=()=>{$("#conf").innerHTML=`<div class="confirm"><span>Weet je het zeker? Dit kan niet ongedaan worden.</span><button class="btn danger" type="button" id="sdel2">Ja, verwijder</button></div>`;$("#sdel2").onclick=async()=>{await onDelete();close()}};
+  if(extra)extra(close);
+  return close;
+}
+const NOTE_CHIPS=["Achterom","Poort zit op slot","Sleutel bij buren","Hond aanwezig","Bellen vooraf","Ladder nodig","Ook dakramen","Contant betalen","Tikkie sturen"];
+
+function klantForm(id){
+  const k=id?S.kById[id]:{interval_weken:6,prijs:"",actief:true,woonplaats:""};
+  const plaatsen=[...new Set(S.klanten.map(x=>x.woonplaats).filter(Boolean))].sort();
+  const hist=id?S.beurten.filter(b=>b.klant_id===id).sort((a,b)=>b.datum.localeCompare(a.datum)).slice(0,6):[];
+  const s=id?kStatus(k):null;
+  sheet(id?k.naam:"Nieuwe klant",`
+    <label class="full">Naam<input id="f-naam" name="naam" required value="${esc(k.naam)}" autocomplete="off"></label>
+    <label class="full">Adres<input id="f-adres" name="adres" value="${esc(k.adres)}" placeholder="Straat en huisnummer"></label>
+    <label>Postcode<input id="f-pc" name="postcode" value="${esc(k.postcode)}" placeholder="1234 AB"></label>
+    <label>Woonplaats<input id="f-plaats" name="woonplaats" list="plaatsl" value="${esc(k.woonplaats)}" required><datalist id="plaatsl">${plaatsen.map(w=>`<option value="${esc(w)}">`).join("")}</datalist></label>
+    <label>Telefoon<input id="f-tel" name="telefoon" type="tel" value="${esc(k.telefoon)}" placeholder="06 …"></label>
+    <label>Prijs per wasbeurt (€)<input id="f-prijs" name="prijs" type="number" inputmode="decimal" step="0.01" min="0" required value="${esc(k.prijs)}"></label>
+    <label class="full">Elke … weken
+      <select id="f-int" name="interval_weken">${[1,2,3,4,5,6,7,8,10,12,13,26,52].map(n=>`<option value="${n}" ${+k.interval_weken===n?"selected":""}>${n} ${n===1?"week":"weken"}</option>`).join("")}</select></label>
+    <label class="full">Notitie (zie je bij elke beurt)<textarea id="f-not" name="notitie" rows="2" placeholder="Bijv. achterom, poort zit op slot">${esc(k.notitie)}</textarea></label>
+    <div class="full chips" id="noteChips">${NOTE_CHIPS.map(c=>`<button type="button" data-chip="${esc(c)}">+ ${esc(c)}</button>`).join("")}</div>
+    <label class="full chk"><input id="f-act" type="checkbox" name="actief" ${k.actief?"checked":""}> Actieve klant (zet uit als iemand stopt)</label>
+    ${id?`<div class="full"><div class="sub" style="margin-bottom:6px">Status: <span class="pill ${s.cls}">${esc(s.txt)}</span>${k.telefoon?` · <a href="${telHref(k.telefoon)}">Bel ${esc(k.telefoon)}</a>`:""} · <a href="${mapsUrl(k)}" target="_blank" rel="noopener">Kaart</a></div>
+      ${k.volgende_beurt?"":`<button class="btn yellow small" type="button" id="planNext">Plan beurt op ${nice(k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt)}</button>`}</div>
+      <div class="full"><div class="sub">Laatste beurten</div><div class="hist">${hist.length?hist.map(b=>`<div><span>${nice(b.datum)}</span><span>${b.status==="gedaan"?(b.betaald?"betaald":"open"):b.status}</span><span>${euro(b.bedrag)}</span></div>`).join(""):"<div>Nog geen beurten</div>"}</div></div>`:""}
+  `,{
+    onSave:async fd=>{
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),prijs:Number(String(fd.prijs).replace(",","."))||0,interval_weken:+fd.interval_weken||6,notitie:fd.notitie.trim(),actief:!!fd.actief};
+      if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
+      const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
+      if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
+      return res?true:false;
+    },
+    onDelete:id?async()=>{await run(sb.from("klanten").delete().eq("id",id),"Klant verwijderd")}:null,
+    extra:()=>{
+      $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
+      const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
+    }
+  });
+}
+
+function beurtForm(id,preset={}){
+  const b=id?S.beurten.find(x=>x.id===id):{datum:sel,tijd:"09:00",status:"gepland",...preset};
+  const list=S.klanten.filter(k=>k.actief||k.id===b.klant_id);
+  if(!list.length){toast("Voeg eerst een klant toe");tab="klanten";setTab();klantForm();return}
+  const k0=S.kById[b.klant_id];
+  sheet(id?"Beurt wijzigen":"Nieuwe beurt",`
+    <label class="full">Klant<select id="b-kl" name="klant_id" required>${(b.klant_id?"":`<option value="">Kies een klant…</option>`)+list.map(k=>`<option value="${k.id}" ${b.klant_id===k.id?"selected":""}>${esc(k.naam)} — ${esc(k.woonplaats||"")}</option>`).join("")}</select></label>
+    <label>Datum<input id="b-dat" name="datum" type="date" required value="${esc(b.datum)}"></label>
+    <label>Tijd<input id="b-tijd" name="tijd" type="time" step="300" value="${esc(hm(b.tijd))}"></label>
+    <label>Bedrag (€)<input id="b-bed" name="bedrag" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(id?b.bedrag:(k0?k0.prijs:""))}" placeholder="Prijs van klant"></label>
+    <label>Status<select id="b-st" name="status">${["gepland","gedaan","overgeslagen"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select></label>
+    <label class="full chk"><input id="b-bet" type="checkbox" name="betaald" ${b.betaald?"checked":""}> Betaald</label>
+    <label class="full">Notitie bij deze beurt<input id="b-not" name="notitie" value="${esc(b.notitie)}" placeholder="Alleen voor deze keer"></label>
+  `,{
+    onSave:async fd=>{
+      if(!fd.klant_id){toast("Kies een klant");return false}
+      const k=S.kById[fd.klant_id]||{};
+      const row={klant_id:fd.klant_id,datum:fd.datum,tijd:fd.tijd||null,bedrag:fd.bedrag===""?(+k.prijs||0):Number(String(fd.bedrag).replace(",",".")),status:fd.status,betaald:!!fd.betaald,notitie:fd.notitie.trim()};
+      if(row.betaald&&!(b.betaald))row.betaald_op=today();
+      if(!row.betaald)row.betaald_op=null;
+      if(row.status==="gedaan"&&b.status!=="gedaan")row.gedaan_op=new Date().toISOString();
+      if(!id)row.volgorde=bOn(fd.datum).length;
+      const r=await run(id?sb.from("beurten").update(row).eq("id",id):sb.from("beurten").insert(row),id?"Beurt gewijzigd":"Beurt gepland op "+nice(fd.datum));
+      if(r){sel=fd.datum;render()}
+      return r?true:false;
+    },
+    onDelete:id?async()=>{await run(sb.from("beurten").delete().eq("id",id),"Beurt verwijderd")}:null,
+    extra:()=>{$("#b-kl").addEventListener("change",e=>{const k=S.kById[e.target.value];if(k&&!id)$("#b-bed").value=k.prijs})}
+  });
+}
+
+function moveSheet(id){
+  const b=S.beurten.find(x=>x.id===id);if(!b)return;
+  const k=S.kById[b.klant_id]||{naam:"?"};
+  const q=[["Morgen",addDays(b.datum,1)],["+2 dagen",addDays(b.datum,2)],["+1 week",addDays(b.datum,7)],["Maandag erna",addDays(monday(b.datum),7)]];
+  sheet("Verplaats "+k.naam,`
+    <div class="full sub">Nu: ${nice(b.datum)} ${esc(hm(b.tijd))}</div>
+    <div class="full chips">${q.map(([l,d])=>`<button type="button" data-q="${d}">${l} (${nice(d)})</button>`).join("")}</div>
+    <label>Nieuwe datum<input id="m-dat" name="datum" type="date" required value="${esc(b.datum)}"></label>
+    <label>Tijd<input id="m-tijd" name="tijd" type="time" step="300" value="${esc(hm(b.tijd))}"></label>
+  `,{saveLabel:"Verplaatsen",
+    onSave:async fd=>{const r=await run(sb.from("beurten").update({datum:fd.datum,tijd:fd.tijd||null,volgorde:bOn(fd.datum).length}).eq("id",id),"Verplaatst naar "+nice(fd.datum));return r?true:false},
+    extra:()=>{document.querySelectorAll("[data-q]").forEach(x=>x.onclick=()=>{$("#m-dat").value=x.dataset.q})}
+  });
+}
+
+function klaarSheet(id){
+  const b=S.beurten.find(x=>x.id===id);if(!b)return;
+  const k=S.kById[b.klant_id]||{naam:"?",interval_weken:6};
+  const next=addDays(b.datum,(+k.interval_weken||6)*7);
+  const hasNext=S.beurten.some(x=>x.klant_id===b.klant_id&&x.status==="gepland"&&x.datum>b.datum);
+  const go=async(betaald,wijze)=>{
+    $("#sheetRoot").innerHTML="";
+    const {data,error}=await sb.rpc("rond_af",{p_beurt_id:id,p_betaald:betaald,p_betaalwijze:wijze});
+    if(error){toast("Afronden mislukt: "+error.message);return}
+    toast(data&&data.datum?"Klaar ✓ Volgende beurt: "+nice(data.datum):"Klaar ✓");
+    await reload();
+  };
+  sheet("Klaar bij "+k.naam,`
+    <div class="full">${euro(b.bedrag)} · ${hasNext?"Er staat al een volgende beurt gepland.":"Volgende beurt wordt automatisch gepland op <strong>"+nice(next)+"</strong> (elke "+k.interval_weken+" weken)."}</div>
+    <div class="full sub">Is er al betaald?</div>
+    <div class="full paygrid">
+      <button class="btn ghost" type="button" data-pw="">Nog niet betaald</button>
+      <button class="btn ok" type="button" data-pw="contant">Contant</button>
+      <button class="btn ok" type="button" data-pw="tikkie">Tikkie</button>
+      <button class="btn ok" type="button" data-pw="pin">Pin</button>
+      <button class="btn ghost full" type="button" data-pw="factuur" style="grid-column:1/-1">Via factuur (nog open)</button>
+    </div>
+  `,{extra:()=>{document.querySelectorAll("[data-pw]").forEach(x=>x.onclick=()=>{const w=x.dataset.pw;go(w!==""&&w!=="factuur",w)})}});
+}
+
+function paySheet(ids,title){
+  sheet(title,`<div class="full sub">Hoe is er betaald?</div><div class="full paygrid">
+    ${["contant","tikkie","pin","factuur"].map(w=>`<button class="btn ok" type="button" data-pw="${w}">${w[0].toUpperCase()+w.slice(1)}</button>`).join("")}</div>`,
+  {extra:close=>{document.querySelectorAll("[data-pw]").forEach(x=>x.onclick=async()=>{close();await run(sb.from("beurten").update({betaald:true,betaald_op:today(),betaalwijze:x.dataset.pw}).in("id",ids),"Betaling genoteerd")})}});
+}
+
+/* ---------- acties ---------- */
+async function swap(id,dir){
+  const b=S.beurten.find(x=>x.id===id);const list=bOn(b.datum);const i=list.indexOf(b),j=i+dir;
+  if(j<0||j>=list.length)return;
+  const other=list[j];
+  // herschrijf volgorde van de hele dag zodat die altijd 0..n is
+  const order=list.slice();order[i]=other;order[j]=b;
+  const updates=order.map((x,n)=>({x,n})).filter(({x,n})=>x.volgorde!==n);
+  // tijden ook omwisselen zodat de route klopt
+  const ti=b.tijd,tj=other.tijd;
+  $("#loading").hidden=false;
+  for(const {x,n} of updates){
+    const patch={volgorde:n};
+    if(x.id===b.id)patch.tijd=tj; if(x.id===other.id)patch.tijd=ti;
+    const {error}=await sb.from("beurten").update(patch).eq("id",x.id);
+    if(error){toast("Volgorde opslaan mislukt");break}
+  }
+  await reload();
+}
+async function planMany(klanten,datum){
+  let t=$("#rTijd").value||"08:30";const step=+$("#rMin").value||30;
+  const start=bOn(datum).length;
+  const rows=klanten.map((k,i)=>{const r={klant_id:k.id,datum,tijd:t,bedrag:+k.prijs||0,volgorde:start+i};t=addMin(t,step);return r});
+  await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" gepland op "+nice(datum));
+}
+
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,3000)}
+function setTab(){
+  $$("[data-view]").forEach(s=>s.hidden=s.dataset.view!==tab);
+  $$("[data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===tab));
+  try{localStorage.setItem("zs-tab",tab);localStorage.setItem("zs-mode",mode)}catch(e){}
+  render();
+}
+
+/* ---------- events ---------- */
+document.addEventListener("click",async e=>{
+  const t=e.target.closest("button,[data-edit-beurt],[data-goto]");if(!t)return;
+  const d=t.dataset;
+  if(d.logout!==undefined){await sb.auth.signOut();return}
+  if(d.tab){tab=d.tab;setTab();window.scrollTo(0,0);return}
+  if(d.mode){mode=d.mode;setTab();return}
+  if(d.day){sel=d.day;renderPlanning();return}
+  if(d.goto){sel=d.goto;mode="dag";tab="planning";setTab();return}
+  if(d.pay){payMode=d.pay;renderPay();return}
+  if(d.klaar){klaarSheet(d.klaar);return}
+  if(d.move){moveSheet(d.move);return}
+  if(d.paid){const b=S.beurten.find(x=>x.id===d.paid);if(b&&b.betaald){t.disabled=true;await run(sb.from("beurten").update({betaald:false,betaald_op:null,betaalwijze:""}).eq("id",b.id),"Weer op onbetaald gezet")}else paySheet([d.paid],"Betaling noteren");return}
+  if(d.paidAll){const ids=S.beurten.filter(b=>b.klant_id===d.paidAll&&b.status==="gedaan"&&!b.betaald).map(b=>b.id);paySheet(ids,"Alles betaald door "+((S.kById[d.paidAll]||{}).naam||""));return}
+  if(d.up){t.disabled=true;await swap(d.up,-1);return}
+  if(d.down){t.disabled=true;await swap(d.down,1);return}
+  if(d.editBeurt){beurtForm(d.editBeurt);return}
+  if(d.newBeurt){beurtForm(null,{datum:d.newBeurt});return}
+  if(d.klant){klantForm(d.klant);return}
+  if(d.newKlant!==undefined){klantForm();return}
+  if(d.planKlant){t.disabled=true;await planMany([S.kById[d.planKlant]],$("#rDatum").value||addDays(today(),1));return}
+  if(d.planPlaats){
+    t.disabled=true;const horizon=addDays(today(),+$("#rHorizon").value||14);
+    const items=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon&&(k.woonplaats||"Onbekend")===d.planPlaats).sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
+    await planMany(items,$("#rDatum").value||addDays(today(),1));return}
+});
+document.addEventListener("keydown",e=>{
+  if(e.key==="Escape"&&$("#sheetRoot").innerHTML){$("#sheetRoot").innerHTML="";return}
+  if(e.key==="Enter"&&e.target.matches&&e.target.matches(".mini[data-edit-beurt]"))beurtForm(e.target.dataset.editBeurt);
+});
+// slepen in weekweergave
+document.addEventListener("dragstart",e=>{const m=e.target.closest&&e.target.closest("[data-drag]");if(!m)return;e.dataTransfer.setData("text/plain",m.dataset.drag);e.dataTransfer.effectAllowed="move";m.classList.add("dragging")});
+document.addEventListener("dragend",e=>{const m=e.target.closest&&e.target.closest("[data-drag]");if(m)m.classList.remove("dragging");$$(".col.drop").forEach(c=>c.classList.remove("drop"))});
+document.addEventListener("dragover",e=>{const c=e.target.closest&&e.target.closest("[data-drop]");if(!c)return;e.preventDefault();$$(".col.drop").forEach(x=>x!==c&&x.classList.remove("drop"));c.classList.add("drop")});
+document.addEventListener("drop",async e=>{const c=e.target.closest&&e.target.closest("[data-drop]");if(!c)return;e.preventDefault();c.classList.remove("drop");
+  const id=e.dataTransfer.getData("text/plain");const b=S.beurten.find(x=>x.id===id);if(!b||b.datum===c.dataset.drop)return;
+  await run(sb.from("beurten").update({datum:c.dataset.drop,volgorde:bOn(c.dataset.drop).length}).eq("id",id),"Verplaatst naar "+nice(c.dataset.drop))});
+
+$("#prev").onclick=()=>{sel=addDays(sel,mode==="week"?-7:-1);renderPlanning()};
+$("#next").onclick=()=>{sel=addDays(sel,mode==="week"?7:1);renderPlanning()};
+$("#todayBtn").onclick=()=>{sel=today();renderPlanning()};
+$("#addBtn").onclick=()=>beurtForm(null,{datum:tab==="planning"?sel:today()});
+$("#addKlant").onclick=()=>klantForm();
+$("#zoek").oninput=e=>{zoek=e.target.value;renderKlanten()};
+$("#kFilter").onchange=e=>{kFilter=e.target.value;renderKlanten()};
+["rDatum","rHorizon"].forEach(id=>$("#"+id).addEventListener("change",renderRoutes));
+// verversen als de app weer in beeld komt (bijv. telefoon uit zak)
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&user&&!$("#app").hidden)reload()});
+
+/* ---------- formulieren login/setup ---------- */
+$("#setupForm").onsubmit=e=>{e.preventDefault();try{localStorage.setItem("zs-cfg",JSON.stringify({url:$("#setUrl").value.trim().replace(/\/$/,""),key:$("#setKey").value.trim()}))}catch(x){}location.reload()};
+$("#loginForm").onsubmit=async e=>{
+  e.preventDefault();$("#lErr").textContent="";$("#lOk").textContent="";$("#lBtn").disabled=true;
+  const {data,error}=await sb.auth.signInWithPassword({email:$("#lEmail").value.trim(),password:$("#lPass").value});
+  $("#lBtn").disabled=false;
+  if(error){$("#lErr").textContent=error.message.includes("Invalid")?"E-mailadres of wachtwoord klopt niet.":error.message;return}
+  user=data.user;await enter();
+};
+$("#forgotBtn").onclick=async()=>{
+  const em=$("#lEmail").value.trim();$("#lErr").textContent="";$("#lOk").textContent="";
+  if(!em){$("#lErr").textContent="Vul eerst je e-mailadres in.";return}
+  const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+  if(error)$("#lErr").textContent=error.message;else $("#lOk").textContent="Als dit adres bekend is, krijg je een e-mail met een link om een nieuw wachtwoord in te stellen.";
+};
+$("#signupBtn").onclick=async()=>{
+  const em=$("#lEmail").value.trim(),pw=$("#lPass").value;$("#lErr").textContent="";$("#lOk").textContent="";
+  if(!em||pw.length<8){$("#lErr").textContent="Vul je e-mailadres en een wachtwoord van minimaal 8 tekens in.";return}
+  $("#signupBtn").disabled=true;
+  const {data,error}=await sb.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname}});
+  $("#signupBtn").disabled=false;
+  if(error){$("#lErr").textContent=error.message;return}
+  if(data.session){user=data.user;await enter();return}
+  $("#lOk").textContent="Account aangemaakt. Laat de beheerder weten dat je toegang nodig hebt; daarna kun je hier inloggen.";
+};
+$("#resetForm").onsubmit=async e=>{
+  e.preventDefault();$("#rErr").textContent="";
+  const {data,error}=await sb.auth.updateUser({password:$("#rPass").value});
+  if(error){$("#rErr").textContent=error.message;return}
+  history.replaceState(null,"",location.pathname);user=data.user;toast("Wachtwoord opgeslagen");await enter();
+};
+
+boot();
+})();
+</script>
+</body>
+</html>
