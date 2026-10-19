@@ -78,6 +78,12 @@ a.btn{text-decoration:none;display:inline-block}
 .scrollx{overflow-x:auto;max-width:100%}
 .ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
 .form label.btn{display:inline-flex;flex-direction:row;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);font-weight:600;gap:4px}
+.ac{position:relative}
+.ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(6,20,28,.18);overflow:hidden;text-transform:none;letter-spacing:0}
+.ac-item{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font-size:15px;font-weight:500;color:var(--ink)}
+.ac-item:last-child{border-bottom:0}
+.ac-item:hover,.ac-item:focus{background:var(--surface2)}
+.ac-empty{padding:10px 12px;font-size:14px;color:var(--muted);font-weight:400}
 .mchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px!important;text-transform:none!important;letter-spacing:0!important;color:var(--ink)!important;font-weight:500!important}
 #cpOpts .chk{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
 .chkrow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -348,6 +354,7 @@ nav.tabs svg{width:22px;height:22px}
       <select id="rMin"><option>15</option><option>20</option><option selected>30</option><option>45</option><option>60</option></select>
       <label class="sub" for="rHorizon">aan de beurt binnen</label>
       <select id="rHorizon"><option value="7">7 dagen</option><option value="14" selected>14 dagen</option><option value="30">30 dagen</option></select>
+      <label class="chk sub" for="rDagOk" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="rDagOk"> alleen klanten die op deze dag kunnen</label>
       <label class="sub" for="rMw" data-mw-only hidden>door</label><select id="rMw" data-mw-only hidden></select>
     </div>
     <div class="list" id="routeList"></div>
@@ -576,22 +583,34 @@ const arr=a=>Array.isArray(a)?a.map(Number):[];
 const firstOfMonth=(y,m)=>y+"-"+pad(m)+"-01"; // m = 1..12
 function addMonths(d,n){const x=parse(d);return new Date(x.getFullYear(),x.getMonth()+n,1,12)}
 function noSunday(d){return parse(d).getDay()===0?addDays(d,1):d}
-function volgendeDatum(d,k){
+const isoDow=d=>((parse(d).getDay()+6)%7)+1; // 1=ma … 7=zo
+function maandOk(k,d){const m=parse(d).getMonth()+1,v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);return v.length?v.includes(m):!p.includes(m)}
+function snapDag(d,k,na){ // dichtstbijzijnde voorkeursdag (max 3 dagen), anders de eerstvolgende
+  const dagen=arr(k.voorkeur_dagen);if(!dagen.length)return d;
+  for(const o of [0,1,-1,2,-2,3,-3]){const c=addDays(d,o);if((!na||c>na)&&dagen.includes(isoDow(c))&&maandOk(k,c))return c}
+  for(let o=4;o<=45;o++){const c=addDays(d,o);if(dagen.includes(isoDow(c))&&maandOk(k,c))return c}
+  return d;
+}
+function volgendeDatum(d,k){return snapDag(volgendeBasis(d,k),k,d)}
+function volgendeBasis(d,k){
   const vaste=arr(k.vaste_maanden),pauze=arr(k.pauze_maanden);
   if(vaste.length){const dag=parse(d).getDate();for(let i=1;i<=24;i++){const c=addMonths(d,i);if(vaste.includes(c.getMonth()+1)){const last=new Date(c.getFullYear(),c.getMonth()+1,0).getDate();return noSunday(iso(new Date(c.getFullYear(),c.getMonth(),Math.min(dag,last),12)))}}}
   let n=addDays(d,(+k.interval_weken||6)*7);
   if(pauze.length&&pauze.includes(parse(n).getMonth()+1)){for(let i=1;i<=12;i++){const c=addMonths(n,i);if(!pauze.includes(c.getMonth()+1)){n=iso(c);break}}}
   return noSunday(n);
 }
-function eerstMogelijk(d,k){ // vandaag, of het begin van de eerstvolgende toegestane maand
+function eerstMogelijk(d,k){const b=eerstMogelijkBasis(d,k);const dagen=arr(k.voorkeur_dagen);if(!dagen.length)return b;for(let o=0;o<=45;o++){const c=addDays(b,o);if(dagen.includes(isoDow(c))&&maandOk(k,c))return c}return b}
+function eerstMogelijkBasis(d,k){ // vandaag, of het begin van de eerstvolgende toegestane maand
   const vaste=arr(k.vaste_maanden),pauze=arr(k.pauze_maanden),m=parse(d).getMonth()+1;
   if(vaste.length&&!vaste.includes(m)){for(let i=1;i<=12;i++){const c=addMonths(d,i);if(vaste.includes(c.getMonth()+1))return noSunday(iso(c))}}
   if(pauze.length&&pauze.includes(m)){for(let i=1;i<=12;i++){const c=addMonths(d,i);if(!pauze.includes(c.getMonth()+1))return noSunday(iso(c))}}
   return d;
 }
-function freqText(k){const v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);
-  if(v.length)return v.length+"× per jaar ("+v.slice().sort((a,b)=>a-b).map(m=>MN[m-1]).join(", ")+")";
-  return "Elke "+(k.interval_weken||6)+" weken"+(p.length?" · winterstop "+p.map(m=>MN[m-1]).join(", "):"");}
+const DAGK=["ma","di","wo","do","vr","za"];
+function dagenText(k){const d=arr(k.voorkeur_dagen);return d.length?"op "+d.slice().sort((a,b)=>a-b).map(x=>DAGK[x-1]).join("/"):""}
+function freqText(k){const v=arr(k.vaste_maanden),p=arr(k.pauze_maanden),dt=dagenText(k);
+  if(v.length)return v.length+"× per jaar ("+v.slice().sort((a,b)=>a-b).map(m=>MN[m-1]).join(", ")+")"+(dt?" · "+dt:"");
+  return "Elke "+(k.interval_weken||6)+" weken"+(dt?" · "+dt:"")+(p.length?" · winterstop "+p.map(m=>MN[m-1]).join(", "):"");}
 function inPauze(k,d){const m=parse(d).getMonth()+1,v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);return v.length?!v.includes(m):p.includes(m)}
 // laatste/volgende beurt, aan de beurt en openstaand per klant (berekend uit de geladen beurten)
 function deriveKlant(k,mine){
@@ -716,7 +735,8 @@ function renderRoutes(){
   $$("[data-mw-only]").forEach(x=>x.hidden=!others.length);
   const rs=$("#rMw");if(rs){const v=rs.value;rs.innerHTML=`<option value="">mijzelf</option>`+others.map(m=>`<option value="${m.user_id}">${esc(m.naam)}</option>`).join("");rs.value=v}
   const t=today(),horizon=addDays(t,+$("#rHorizon").value||14),datum=$("#rDatum").value||addDays(t,1);
-  const due=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon);
+  const dow=isoDow(datum),dagOk=k=>!arr(k.voorkeur_dagen).length||arr(k.voorkeur_dagen).includes(dow);
+  const due=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon&&(!$("#rDagOk").checked||dagOk(k)));
   const planned=bOn(datum);
   let h="";
   if(planned.length){
@@ -728,7 +748,7 @@ function renderRoutes(){
   h+=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length).map(([w,items])=>{
     items.sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
     return `<div class="group-h"><span>${esc(w)} · ${items.length} klanten · ${euro(items.reduce((t,k)=>t+(+k.prijs||0),0))}</span><button class="btn small" type="button" data-plan-plaats="${esc(w)}">Plan alle op ${nice(datum)}</button></div>`+
-      items.map(k=>{const s=kStatus(k);const ga=k.geappt_op&&String(k.geappt_op).slice(0,10)>=addDays(t,-14);return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.adres||"")}${ga?" · ✓ geappt "+nice(String(k.geappt_op).slice(0,10)):""}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div><div class="meta"><span class="pill ${s.cls}">${esc(s.txt)}</span><div class="row-acts" style="margin:0">${waBtn(k,"beurt",{datum},"k:"+k.id,"💬 Vraag")}<button class="btn ghost small" type="button" data-plan-klant="${k.id}">Plan in</button></div></div></div>`}).join("");
+      items.map(k=>{const s=kStatus(k);const ga=k.geappt_op&&String(k.geappt_op).slice(0,10)>=addDays(t,-14);return `<div class="kl"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.adres||"")}${arr(k.voorkeur_dagen).length?` · <span class="pill ${dagOk(k)?"p-ok":"p-warn"}">${esc(dagenText(k))}</span>`:""}${ga?" · ✓ geappt "+nice(String(k.geappt_op).slice(0,10)):""}</div>${k.notitie?`<div class="note">📌 ${esc(k.notitie)}</div>`:""}</div><div class="meta"><span class="pill ${s.cls}">${esc(s.txt)}</span><div class="row-acts" style="margin:0">${waBtn(k,"beurt",{datum},"k:"+k.id,"💬 Vraag")}<button class="btn ghost small" type="button" data-plan-klant="${k.id}">Plan in</button></div></div></div>`}).join("");
   }).join("");
   $("#routeList").innerHTML=h;
 }
@@ -780,7 +800,7 @@ function klantForm(id){
   const ondHtml=()=>ond.map((o,n)=>`<div class="ondrow"><input aria-label="Onderdeel" data-on="${n}" value="${esc(o.naam)}" placeholder="Bijv. voorkant"><input aria-label="Prijs" data-op="${n}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(o.prijs)}" placeholder="€"><button class="iconbtn" type="button" data-ondel="${n}" aria-label="Verwijder onderdeel">×</button></div>`).join("");
   sheet(id?k.naam:"Nieuwe klant",`
     <label class="full">Naam<input id="f-naam" name="naam" required value="${esc(k.naam)}" autocomplete="off"></label>
-    <label class="full">Adres<input id="f-adres" name="adres" value="${esc(k.adres)}" placeholder="Straat en huisnummer"></label>
+    <label class="full ac">Adres<input id="f-adres" name="adres" value="${esc(k.adres)}" placeholder="Typ straat + huisnummer, of postcode + huisnummer" autocomplete="off"><div class="ac-list" id="acList" hidden></div></label>
     <label>Postcode<input id="f-pc" name="postcode" value="${esc(k.postcode)}" placeholder="1234 AB"></label>
     <label>Woonplaats<input id="f-plaats" name="woonplaats" list="plaatsl" value="${esc(k.woonplaats)}" required><datalist id="plaatsl">${plaatsen.map(w=>`<option value="${esc(w)}">`).join("")}</datalist></label>
     <label>Telefoon<input id="f-tel" name="telefoon" type="tel" value="${esc(k.telefoon)}" placeholder="06 …"></label>
@@ -796,6 +816,8 @@ function klantForm(id){
       <div class="chips" id="fPauze">${MN.map((m,i)=>`<label class="chk mchip"><input type="checkbox" value="${i+1}" ${arr(k.pauze_maanden).includes(i+1)?"checked":""}> ${m}</label>`).join("")}</div>
       <div class="chips" style="margin-top:6px"><button type="button" id="fWinter">Dec t/m feb</button><button type="button" id="fWinter2">Nov t/m mrt</button><button type="button" id="fNoPauze">Geen stop</button></div>
     </div>
+    <div class="full"><div class="sub" style="margin-bottom:4px">Vaste wasdag (optioneel). De app plant de volgende beurt op de dichtstbijzijnde gekozen dag.</div>
+      <div class="chips" id="fDagen">${DAGK.map((x,i)=>`<label class="chk mchip"><input type="checkbox" value="${i+1}" ${arr(k.voorkeur_dagen).includes(i+1)?"checked":""}> ${x}</label>`).join("")}</div></div>
     <div class="full" id="fmMaanden" ${arr(k.vaste_maanden).length?"":"hidden"}>
       <div class="sub" style="margin-bottom:4px">In welke maanden wassen? De volgende beurt komt op dezelfde dag van de maand.</div>
       <div class="chips" id="fVaste">${MN.map((m,i)=>`<label class="chk mchip"><input type="checkbox" value="${i+1}" ${arr(k.vaste_maanden).includes(i+1)?"checked":""}> ${m}</label>`).join("")}</div>
@@ -821,7 +843,7 @@ function klantForm(id){
       const onderdelen=ond.map(o=>({naam:String(o.naam).trim(),prijs:Number(String(o.prijs).replace(",","."))||0})).filter(o=>o.naam);
       let prijs=Number(String(fd.prijs).replace(",","."))||0;
       if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
-      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value),notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
       const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
       if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
@@ -832,6 +854,7 @@ function klantForm(id){
       $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
       const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
       $("#f-zak").onchange=e=>{$("#tavWrap").hidden=!e.target.checked};
+      adresAanvullen($("#f-adres"),$("#acList"),a=>{$("#f-adres").value=a.adres;if(a.postcode)$("#f-pc").value=a.postcode;if(a.woonplaats)$("#f-plaats").value=a.woonplaats});
       $$("[data-fm]").forEach(x=>x.onclick=()=>{fm=x.dataset.fm;$$("[data-fm]").forEach(y=>y.setAttribute("aria-pressed",y===x));$("#fmWeken").hidden=fm!=="weken";$("#fmMaanden").hidden=fm!=="maanden"});
       const setM=(sel,list)=>$$(sel+" input").forEach(i=>i.checked=list.includes(+i.value));
       $("#fWinter").onclick=()=>setM("#fPauze",[12,1,2]);$("#fWinter2").onclick=()=>setM("#fPauze",[11,12,1,2,3]);$("#fNoPauze").onclick=()=>setM("#fPauze",[]);
@@ -992,6 +1015,43 @@ async function uploadFoto(klantId,file,oud){
 async function fotoSheet(path,title){
   sheet(title,`<div class="full" id="fsBox"><div class="sub">Foto laden…</div></div>`,{});
   const u=await signedUrl(path);const b=$("#fsBox");if(b)b.innerHTML=u?`<img class="photo" src="${esc(u)}" alt="${esc(title)}">`:`<div class="err">Foto kon niet geladen worden.</div>`;
+}
+
+/* ---------- adres aanvullen via PDOK Locatieserver (gratis, overheid) ---------- */
+const PDOK="https://api.pdok.nl/bzk/locatieserver/search/v3_1/";
+function fmtPc(p){p=String(p||"").replace(/\s+/g,"").toUpperCase();return /^\d{4}[A-Z]{2}$/.test(p)?p.slice(0,4)+" "+p.slice(4):p}
+function adresAanvullen(inp,list,onPick){
+  let t=null,seq=0,items=[];
+  const hide=()=>{list.hidden=true;list.innerHTML=""};
+  inp.addEventListener("input",()=>{
+    clearTimeout(t);const q=inp.value.trim();
+    if(q.length<4||!/\d/.test(q)){hide();return}
+    t=setTimeout(async()=>{
+      const my=++seq;
+      try{
+        const r=await fetch(PDOK+"suggest?rows=6&fq=type:adres&q="+encodeURIComponent(q));
+        if(!r.ok)throw new Error(r.status);
+        const j=await r.json();if(my!==seq)return;
+        items=(j.response&&j.response.docs)||[];
+        if(!items.length){list.innerHTML=`<div class="ac-empty">Geen adres gevonden</div>`;list.hidden=false;return}
+        list.innerHTML=items.map((d,i)=>`<button type="button" class="ac-item" data-ac="${i}">${esc(d.weergavenaam)}</button>`).join("");
+        list.hidden=false;
+      }catch(e){hide()} // geen internet of dienst onbereikbaar: gewoon zelf typen
+    },250);
+  });
+  list.addEventListener("mousedown",e=>e.preventDefault());
+  list.addEventListener("click",async e=>{
+    const b=e.target.closest("[data-ac]");if(!b)return;
+    const d=items[+b.dataset.ac];hide();
+    try{
+      const r=await fetch(PDOK+"lookup?fl=straatnaam,huis_nlt,huisnummer,huisletter,huisnummertoevoeging,postcode,woonplaatsnaam,weergavenaam&id="+encodeURIComponent(d.id));
+      const j=await r.json();const a=(j.response&&j.response.docs&&j.response.docs[0])||{};
+      const nr=a.huis_nlt||[a.huisnummer,a.huisletter,a.huisnummertoevoeging?"-"+a.huisnummertoevoeging:""].filter(Boolean).join("");
+      onPick({adres:[a.straatnaam,nr].filter(Boolean).join(" ")||d.weergavenaam,postcode:fmtPc(a.postcode),woonplaats:a.woonplaatsnaam||""});
+    }catch(x){const m=String(d.weergavenaam||"").match(/^(.*?),\s*(\d{4}\s?[A-Z]{2})\s+(.*)$/);if(m)onPick({adres:m[1],postcode:fmtPc(m[2]),woonplaats:m[3]});else onPick({adres:d.weergavenaam})}
+  });
+  inp.addEventListener("blur",()=>setTimeout(hide,150));
+  inp.addEventListener("keydown",e=>{if(e.key==="Escape")hide()});
 }
 
 /* ---------- weer (Open-Meteo, gratis, geen sleutel) ---------- */
@@ -1471,7 +1531,8 @@ document.addEventListener("click",async e=>{
   if(d.planKlant){t.disabled=true;await planMany([S.kById[d.planKlant]],$("#rDatum").value||addDays(today(),1));return}
   if(d.planPlaats){
     t.disabled=true;const horizon=addDays(today(),+$("#rHorizon").value||14);
-    const items=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon&&(k.woonplaats||"Onbekend")===d.planPlaats).sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
+    const pd=$("#rDatum").value||addDays(today(),1),dw=isoDow(pd);
+    const items=S.klanten.filter(k=>k.actief&&!k.volgende_beurt&&k.aan_de_beurt<=horizon&&(k.woonplaats||"Onbekend")===d.planPlaats&&(!$("#rDagOk").checked||!arr(k.voorkeur_dagen).length||arr(k.voorkeur_dagen).includes(dw))).sort((a,b)=>(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
     await planMany(items,$("#rDatum").value||addDays(today(),1));return}
 });
 // WhatsApp-link: link opent WhatsApp; wij noteren dat er geappt is
@@ -1505,7 +1566,7 @@ $("#cNext").onclick=()=>{crewDay=addDays(crewDay,1);loadCrew()};
 $("#cToday").onclick=()=>{crewDay=today();loadCrew()};
 $("#zoek").oninput=e=>{zoek=e.target.value;renderKlanten()};
 $("#kFilter").onchange=e=>{kFilter=e.target.value;renderKlanten()};
-["rDatum","rHorizon"].forEach(id=>$("#"+id).addEventListener("change",renderRoutes));
+["rDatum","rHorizon","rDagOk"].forEach(id=>$("#"+id).addEventListener("change",renderRoutes));
 // verversen als de app weer in beeld komt (bijv. telefoon uit zak)
 document.addEventListener("visibilitychange",()=>{if(document.hidden||!user)return;if(!$("#app").hidden)reload();else if(!$("#crewApp").hidden)loadCrew()});
 
