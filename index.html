@@ -1564,7 +1564,12 @@ function leesBankCsv(text){
   let iN=has(["naamtegenpartij","tegenrekeninghouder","naamomschrijving","naam-omschrijving","tegenpartij","name","naam","counterparty"]),iR=has(["tegenrekeningiban","tegenrekeningnummer","tegenrekening","counterpartyiban","iban-tegenpartij","counterparty"]);
   const iO=["omschrijving-1","omschrijving-2","omschrijving-3","mededelingen","omschrijving","description","betalingskenmerk"].map(k=>h.indexOf(normH(k))).filter(i=>i>=0);
   let data=rows.slice(1);
-  if(iD<0||iB<0){ // ABN AMRO .TAB: geen kopregel
+  if(iD<0||iB<0){
+    // SNS / ASN Bank / RegioBank (de Volksbank) CSV: geen kopregel; datum, eigen rekening, tegenrekening, naam, …, bedrag (kolom 8), …, kenmerk, omschrijving
+    if(rows[0].length>=15&&/^\d{1,2}-\d{1,2}-\d{4}$/.test(String(rows[0][0]).trim())&&/^[A-Z]{2}\d{2}/.test(String(rows[0][1]).trim())){
+      return rows.map(r=>({datum:nlDatum(r[0]),bedrag:parseFloat(String(r[7]).replace(",",".")),tegenpartij:String(r[3]||"").trim(),tegenrekening:String(r[2]||"").trim(),omschrijving:[r[14],r[13]].map(x=>String(x||"").replace(/^'|'$/g,"").trim()).filter(Boolean).join(" ").replace(/\s+/g," ")})).filter(t=>t.datum&&!isNaN(t.bedrag)&&t.bedrag!==0);
+    }
+    // ABN AMRO .TAB: geen kopregel
     if(rows[0].length>=8&&/^\d{8}$/.test(String(rows[0][2]).trim())){return rows.map(r=>{const o=String(r[7]||"").replace(/\s+/g," ").trim();const nm=(o.match(/\/NAME\/([^/]+)/)||o.match(/Naam:\s*(.+?)(?:\s{2,}|Omschrijving:|$)/)||[])[1]||"";const rk=(o.match(/\/IBAN\/([A-Z0-9]+)/)||o.match(/IBAN:\s*([A-Z0-9]+)/)||[])[1]||"";return{datum:nlDatum(r[2]),bedrag:nlBedrag(r[6]),tegenpartij:nm.trim(),tegenrekening:rk,omschrijving:o}}).filter(t=>t.datum&&!isNaN(t.bedrag))}
     return[];
   }
@@ -1599,8 +1604,8 @@ async function renderBank(){
   box.innerHTML=`
     <div class="panel" style="flex-direction:column;align-items:stretch;gap:8px">
       <div><strong>Bankafschrift inladen</strong></div>
-      <div class="sub">Download in je internetbankieren je transacties als <strong>CSV</strong> (ING, Rabobank, Knab, bunq), <strong>TXT/TAB</strong> (ABN AMRO) of <strong>CAMT.053</strong> en kies het bestand hier. Dubbele transacties worden overgeslagen, dus een periode opnieuw inladen kan geen kwaad.</div>
-      <div class="row-acts"><label class="btn small" for="bankIn" style="cursor:pointer">📄 Bestand kiezen</label><input id="bankIn" type="file" accept=".csv,.txt,.tab,.xml,.053" hidden></div>
+      <div class="sub">Download in je internetbankieren je transacties als <strong>CSV</strong> (SNS/ASN, ING, Rabobank, Knab, bunq), <strong>TXT/TAB</strong> (ABN AMRO) of <strong>CAMT.053</strong> (ook als zip) en kies het bestand hier. Dubbele transacties worden overgeslagen, dus een periode opnieuw inladen kan geen kwaad.</div>
+      <div class="row-acts"><label class="btn small" for="bankIn" style="cursor:pointer">📄 Bestand kiezen</label><input id="bankIn" type="file" accept=".csv,.txt,.tab,.xml,.053,.zip" hidden></div>
     </div>
     <div class="seg" role="group" aria-label="Filter"><button type="button" data-bf="open" aria-pressed="${bankFilter==="open"}">Te doen (${nOpen})</button><button type="button" data-bf="klaar" aria-pressed="${bankFilter==="klaar"}">Verwerkt</button><button type="button" data-bf="alle" aria-pressed="${bankFilter==="alle"}">Alles</button></div>
     <div class="list">${l.length?l.slice(0,300).map(t=>bankRij(t)).join(""):`<div class="empty">${bankFilter==="open"?(all.length?"Alles is verwerkt. 🎉":"Nog geen transacties ingeladen."):"Niets om te tonen."}</div>`}</div>`;
@@ -1621,7 +1626,12 @@ function bankRij(t){
 }
 async function bankInladen(f){
   try{
-    const txt=await f.text();const l=/<Document[\s>]|camt\.053/i.test(txt.slice(0,2000))?leesCamt(txt):leesBankCsv(txt);
+    let l=[];
+    if(/\.zip$/i.test(f.name)||f.type.includes("zip")){
+      await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+      const z=await JSZip.loadAsync(await f.arrayBuffer());
+      for(const n of Object.keys(z.files)){if(z.files[n].dir)continue;const t=await z.files[n].async("string");l.push(...(/<Document[\s>]|camt\.053/i.test(t.slice(0,2000))?leesCamt(t):leesBankCsv(t)))}
+    }else{const txt=await f.text();l=/<Document[\s>]|camt\.053/i.test(txt.slice(0,2000))?leesCamt(txt):leesBankCsv(txt)}
     if(!l.length){toast("Geen transacties herkend. Kies een CSV-, TXT- of CAMT.053-bestand van je bank.");return}
     const cnt={};const rows=l.map(t=>{const base=[t.datum,t.bedrag,t.tegenrekening,t.tegenpartij,t.omschrijving].join("|");cnt[base]=(cnt[base]||0)+1;return{id:txnId(t,cnt[base]),datum:t.datum,bedrag:r2(t.bedrag),tegenpartij:t.tegenpartij.slice(0,200),tegenrekening:t.tegenrekening.slice(0,40),omschrijving:t.omschrijving.slice(0,500)}});
     let nieuw=0;
