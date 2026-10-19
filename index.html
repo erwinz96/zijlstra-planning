@@ -518,23 +518,35 @@ async function enter(){
 }
 
 /* ---------- data ---------- */
+// Supabase geeft max. 1000 regels per verzoek: haal alles op in pagina's
+async function fetchAll(make){
+  const out=[];const step=1000;
+  for(let from=0;;from+=step){
+    const {data,error}=await make().range(from,from+step-1);
+    if(error)return{data:null,error};
+    out.push(...(data||[]));
+    if(!data||data.length<step)break;
+  }
+  return{data:out,error:null};
+}
 async function reload(){
   $("#loading").hidden=false;
   const from=addDays(today(),-400);
   const [k,b,ins,mw]=await Promise.all([
-    sb.from("klanten").select("*").order("naam"),
-    sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("tijd",{nullsFirst:false}),
+    fetchAll(()=>sb.from("klanten").select("*").order("naam").order("id")),
+    fetchAll(()=>sb.from("beurten").select("*").gte("datum",from).order("datum").order("volgorde").order("id")),
     sb.from("instellingen").select("*").eq("id",1).maybeSingle(),
     sb.rpc("medewerkers_lijst")
   ]);
   S.inst=(ins&&ins.data)||{};S.mws=((mw&&mw.data)||[]).filter(x=>x.actief);
   if(!wxLoaded){wxLoaded=true;loadWeather()}
   // oudere onbetaalde beurten ook meenemen
-  const old=await sb.from("beurten").select("*").lt("datum",from).eq("status","gedaan").eq("betaald",false);
+  const old=await fetchAll(()=>sb.from("beurten").select("*").lt("datum",from).eq("status","gedaan").eq("betaald",false).order("id"));
   $("#loading").hidden=true;
   if(k.error||b.error){toast("Laden mislukt: "+(k.error||b.error).message);return}
   S.beurten=[...(old.data||[]),...(b.data||[])];
-  S.klanten=(k.data||[]).map(x=>deriveKlant(x));S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
+  const byK={};S.beurten.forEach(x=>{(byK[x.klant_id]=byK[x.klant_id]||[]).push(x)});
+  S.klanten=(k.data||[]).map(x=>deriveKlant(x,byK[x.id]||[]));S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
   render();
 }
 async function run(promise,okMsg){
@@ -581,8 +593,7 @@ function freqText(k){const v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);
   return "Elke "+(k.interval_weken||6)+" weken"+(p.length?" · winterstop "+p.map(m=>MN[m-1]).join(", "):"");}
 function inPauze(k,d){const m=parse(d).getMonth()+1,v=arr(k.vaste_maanden),p=arr(k.pauze_maanden);return v.length?!v.includes(m):p.includes(m)}
 // laatste/volgende beurt, aan de beurt en openstaand per klant (berekend uit de geladen beurten)
-function deriveKlant(k){
-  const mine=S.beurten.filter(b=>b.klant_id===k.id);
+function deriveKlant(k,mine){
   let laatste=null,volgende=null,open=0;
   mine.forEach(b=>{if(b.status==="gedaan"){if(!laatste||b.datum>laatste)laatste=b.datum;if(!b.betaald)open+=Number(b.bedrag)||0}else if(b.status==="gepland"){if(!volgende||b.datum<volgende)volgende=b.datum}});
   return {...k,laatste_beurt:laatste,volgende_beurt:volgende,aan_de_beurt:laatste?volgendeDatum(laatste,k):eerstMogelijk(today(),k),openstaand:Math.round(open*100)/100};
@@ -1210,7 +1221,7 @@ async function renderBtw(){
   const I=S.inst||{};const Y=btwJaar;
   $("#meerBody").innerHTML=`<div class="empty">Gegevens van ${Y} ophalen…</div>`;
   // los ophalen per jaar, zodat ook oudere jaren kloppen
-  const {data,error}=await sb.from("beurten").select("datum,bedrag,status,betaald,betaald_op,betaalwijze").eq("status","gedaan").gte("datum",(Y-1)+"-10-01").lte("datum",(Y+1)+"-03-31");
+  const {data,error}=await fetchAll(()=>sb.from("beurten").select("id,datum,bedrag,status,betaald,betaald_op,betaalwijze").eq("status","gedaan").gte("datum",(Y-1)+"-10-01").lte("datum",(Y+1)+"-03-31").order("id"));
   if(error){$("#meerBody").innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
   const rows=(data||[]).map(b=>({...b,peil:btwStelsel==="kas"?(b.betaald?(b.betaald_op||b.datum):null):b.datum})).filter(b=>b.peil&&b.peil.startsWith(String(Y)));
   const t=+I.btw_tarief||21,incl=I.prijzen_incl_btw!==false,kor=!!I.kor;
