@@ -357,7 +357,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
-      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn small" type="button" id="routeBtn" hidden>⚡ Snelste route</button><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
       <div class="list" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
@@ -686,7 +686,7 @@ function planNieuwSheet(){
     if(!rows.length){toast("Vul minstens één datum in");return false}
     const per={};rows.forEach(r=>{r.volgorde=(per[r.datum]=(per[r.datum]??bOn(r.datum).length))+0;per[r.datum]++});
     const ok=await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" ingepland");
-    if(ok){sel=rows.map(r=>r.datum).sort()[0];mode="dag";tab="planning";setTab()}
+    if(ok){sel=rows.map(r=>r.datum).sort()[0];mode="dag";tab="planning";setTab();autoRoute(rows.map(r=>r.datum))}
     return ok?true:false;
   }});
 }
@@ -723,6 +723,7 @@ function renderDay(){
   $("#dayTotal").textContent=list.length?list.length+" adressen · "+euro(sum(list)):"";
   $("#dayWx").textContent=wxText(sel);
   $("#shiftBtn").hidden=!(list.some(b=>b.status!=="gedaan")&&sel>=t);
+  $("#routeBtn").hidden=list.filter(b=>b.status==="gepland").length<2;
   $("#shiftBtn").textContent=isRainy(sel)?"🌧 Regen: dag verzetten":"Dag verzetten";
   // Route in Google Maps (max ~10 tussenstops)
   const todo=list.filter(b=>b.status!=="gedaan").map(b=>S.kById[b.klant_id]).filter(Boolean);
@@ -914,9 +915,9 @@ function klantForm(id){
       const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value),...(punt&&$("#f-adres").value.trim()===String(adresBijPunt).trim()?punt:{lat:null,lon:null,rd_x:null,rd_y:null}),notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       const st=$("#f-start"),start=st&&!$("#f-geenstart").checked?st.value:"",stijd=$("#f-starttijd")?$("#f-starttijd").value:"";
       const eerste=async kid=>{if(!start)return;const {error}=await sb.from("beurten").insert({klant_id:kid,datum:start,tijd:stijd||null,bedrag:prijs,volgorde:bOn(start).length});if(error)toast("Klant opgeslagen, maar inplannen mislukt: "+error.message)};
-      if(id){const ok=await run(sb.from("klanten").update(row).eq("id",id),start?"Klant opgeslagen en ingepland op "+nice(start):"Klant opgeslagen");if(ok&&start){await eerste(id);await reload()}return ok?true:false}
+      if(id){const ok=await run(sb.from("klanten").update(row).eq("id",id),start?"Klant opgeslagen en ingepland op "+nice(start):"Klant opgeslagen");if(ok&&start){await eerste(id);await reload();autoRoute([start])}return ok?true:false}
       const res=await run(sb.from("klanten").insert(row).select().single(),start?"Klant toegevoegd en ingepland op "+nice(start):"Klant toegevoegd");
-      if(res&&res.id){await eerste(res.id);await reload()}
+      if(res&&res.id){await eerste(res.id);await reload();if(start)autoRoute([start])}
       return res?true:false;
     },
     onDelete:id?async()=>{await run(sb.from("klanten").delete().eq("id",id),"Klant verwijderd")}:null,
@@ -962,20 +963,21 @@ function beurtForm(id,preset={}){
     <label>Bedrag (€)<input id="b-bed" name="bedrag" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(id?b.bedrag:(k0?k0.prijs:""))}" placeholder="Prijs van klant"></label>
     <label>Status<select id="b-st" name="status">${["gepland","gedaan","overgeslagen"].map(s=>`<option ${b.status===s?"selected":""}>${s}</option>`).join("")}</select></label>
     ${S.mws.length>1?`<label class="full">Wie gaat er wassen?<select id="b-mw" name="medewerker_id"><option value="">Ikzelf</option>${S.mws.filter(m=>m.user_id!==(user&&user.id)).map(m=>`<option value="${m.user_id}" ${b.medewerker_id===m.user_id?"selected":""}>${esc(m.naam)}</option>`).join("")}</select></label>`:""}
+    <label class="full chk"><input id="b-vast" type="checkbox" name="tijd_vast" ${b.tijd_vast?"checked":""}> Vaste tijd (de slimme planner laat deze tijd staan)</label>
     <label class="full chk"><input id="b-bet" type="checkbox" name="betaald" ${b.betaald?"checked":""}> Betaald</label>
     <label class="full">Notitie bij deze beurt<input id="b-not" name="notitie" value="${esc(b.notitie)}" placeholder="Alleen voor deze keer"></label>
   `,{
     onSave:async fd=>{
       if(!fd.klant_id){toast("Kies een klant");return false}
       const k=S.kById[fd.klant_id]||{};
-      const row={klant_id:fd.klant_id,datum:fd.datum,tijd:fd.tijd||null,bedrag:fd.bedrag===""?(+k.prijs||0):Number(String(fd.bedrag).replace(",",".")),status:fd.status,betaald:!!fd.betaald,notitie:fd.notitie.trim()};
+      const row={klant_id:fd.klant_id,datum:fd.datum,tijd:fd.tijd||null,bedrag:fd.bedrag===""?(+k.prijs||0):Number(String(fd.bedrag).replace(",",".")),status:fd.status,betaald:!!fd.betaald,tijd_vast:!!fd.tijd_vast&&!!fd.tijd,notitie:fd.notitie.trim()};
       if("medewerker_id" in fd)row.medewerker_id=fd.medewerker_id||null;
       if(row.betaald&&!(b.betaald))row.betaald_op=today();
       if(!row.betaald)row.betaald_op=null;
       if(row.status==="gedaan"&&b.status!=="gedaan")row.gedaan_op=new Date().toISOString();
       if(!id)row.volgorde=bOn(fd.datum).length;
       const r=await run(id?sb.from("beurten").update(row).eq("id",id):sb.from("beurten").insert(row),id?"Beurt gewijzigd":"Beurt gepland op "+nice(fd.datum));
-      if(r){sel=fd.datum;render()}
+      if(r){sel=fd.datum;render();if(!id||fd.datum!==b.datum)autoRoute([fd.datum])}
       return r?true:false;
     },
     onDelete:id?async()=>{await run(sb.from("beurten").delete().eq("id",id),"Beurt verwijderd")}:null,
@@ -993,7 +995,7 @@ function moveSheet(id){
     <label>Nieuwe datum<input id="m-dat" name="datum" type="date" required value="${esc(b.datum)}"></label>
     <label>Tijd<input id="m-tijd" name="tijd" type="time" step="300" value="${esc(hm(b.tijd))}"></label>
   `,{saveLabel:"Verplaatsen",
-    onSave:async fd=>{const r=await run(sb.from("beurten").update({datum:fd.datum,tijd:fd.tijd||null,volgorde:bOn(fd.datum).length}).eq("id",id),"Verplaatst naar "+nice(fd.datum));return r?true:false},
+    onSave:async fd=>{const r=await run(sb.from("beurten").update({datum:fd.datum,tijd:fd.tijd||null,volgorde:bOn(fd.datum).length}).eq("id",id),"Verplaatst naar "+nice(fd.datum));if(r)autoRoute([fd.datum]);return r?true:false},
     extra:()=>{document.querySelectorAll("[data-q]").forEach(x=>x.onclick=()=>{$("#m-dat").value=x.dataset.q})}
   });
 }
@@ -1040,7 +1042,7 @@ function klaarSheet(id){
       const {error}=await sb.rpc("niet_gelukt",{p_beurt_id:id,p_reden:reden,p_nieuwe_datum:x.dataset.ng||null});
       if(error){toast("Opslaan mislukt: "+error.message);return}
       toast(x.dataset.ng?"Genoteerd. Opnieuw gepland op "+nice(x.dataset.ng):"Genoteerd als niet gelukt");
-      await reload();
+      await reload();if(x.dataset.ng)autoRoute([x.dataset.ng]);
     });
   }});
 }
@@ -1191,7 +1193,7 @@ function shiftSheet(from){
     const nt=fd.to;if(!nt||nt===from)return false;
     const start=bOn(nt).length;
     for(let n=0;n<list.length;n++){const {error}=await sb.from("beurten").update({datum:nt,volgorde:start+n,herinnering_op:null}).eq("id",list[n].id);if(error){toast("Verzetten mislukt: "+error.message);return false}}
-    await reload();toast(list.length+" adressen verzet naar "+nice(nt));
+    await reload();toast(list.length+" adressen verzet naar "+nice(nt));autoRoute([nt]);
     setTimeout(()=>verzetAppSheet(list.map(b=>b.id),from,nt),60);
     return true;
   },extra:()=>{$$("#shTo [data-to]").forEach(x=>x.onclick=()=>{$("#sh-d").value=x.dataset.to})}});
@@ -1454,6 +1456,11 @@ function renderBedrijf(){
     <label class="full chk"><input id="i-kor" type="checkbox" name="kor" ${I.kor?"checked":""}> Ik gebruik de kleineondernemersregeling (KOR), geen btw op de factuur</label>
     ${f("factuur_prefix","Voorvoegsel factuurnummer","text","bijv. ZS-")}
     <label>Laatste factuurnummer<input value="${esc(I.factuur_volgnr??0)}" disabled></label>
+    <div class="full section-h" style="font-size:18px;margin-top:6px">Slimme planner</div>
+    <label class="full chk"><input id="i-auto" type="checkbox" name="route_auto" ${I.route_auto!==false?"checked":""}> Na inplannen of verzetten automatisch de snelste route maken</label>
+    <label>Begintijd van de dag<input id="i-stt" name="start_tijd" type="time" step="300" value="${esc(hm(I.start_tijd)||"08:30")}"></label>
+    <label>Minuten per adres<input id="i-mpa" name="min_per_adres" type="number" min="5" max="240" step="5" value="${esc(I.min_per_adres??30)}"></label>
+    <div class="full sub">De route begint bij het adres hierboven. Klanten met een vaste tijd blijven op hun tijd staan.</div>
     <label class="full">Plaats voor het weerbericht<input id="i-weer" name="weer_plaats" value="${esc(I.weer_plaats||"")}" placeholder="Leeg = de plaats met de meeste klanten"></label>
     <div class="full"><div class="sub" style="margin-bottom:6px">Logo op de factuur</div><div id="logoBox" class="sub">${I.logo_pad?"Logo laden…":"Nog geen logo."}</div>
       <div class="row-acts"><label class="btn ghost small" for="logoIn" style="cursor:pointer">${I.logo_pad?"Ander logo":"Logo kiezen"}</label><input id="logoIn" type="file" accept="image/png,image/jpeg" hidden></div></div>
@@ -1462,7 +1469,8 @@ function renderBedrijf(){
   if(I.logo_pad)signedUrl(I.logo_pad).then(u=>{const b=$("#logoBox");if(b)b.innerHTML=u?`<img src="${esc(u)}" alt="Logo" style="max-height:60px">`:"Logo kon niet geladen worden."});
   $("#logoIn").onchange=async e=>{const file=e.target.files&&e.target.files[0];if(!file)return;try{const blob=await compressImage(file,600,.9);const path=`logo/${Date.now()}.jpg`;const {error}=await sb.storage.from("fotos").upload(path,blob,{contentType:"image/jpeg"});if(error)throw error;await run(sb.from("instellingen").update({logo_pad:path}).eq("id",1),"Logo opgeslagen");renderBedrijf()}catch(x){toast("Logo uploaden mislukt: "+x.message)}};
   $("#instForm").onsubmit=async e=>{e.preventDefault();const fd=Object.fromEntries(new FormData(e.target));
-    const row={bedrijfsnaam:(fd.bedrijfsnaam||"").trim(),adres:fd.adres||"",postcode:(fd.postcode||"").toUpperCase(),plaats:fd.plaats||"",telefoon:fd.telefoon||"",email:fd.email||"",kvk:fd.kvk||"",iban:(fd.iban||"").toUpperCase().replace(/\s+/g," ").trim(),btw_nummer:(fd.btw_nummer||"").toUpperCase(),btw_tarief:+String(fd.btw_tarief).replace(",",".")||0,betaaltermijn:+fd.betaaltermijn||14,prijzen_incl_btw:!!fd.prijzen_incl_btw,kor:!!fd.kor,factuur_prefix:fd.factuur_prefix||"",weer_plaats:(fd.weer_plaats||"").trim()};
+    const row={bedrijfsnaam:(fd.bedrijfsnaam||"").trim(),adres:fd.adres||"",postcode:(fd.postcode||"").toUpperCase(),plaats:fd.plaats||"",telefoon:fd.telefoon||"",email:fd.email||"",kvk:fd.kvk||"",iban:(fd.iban||"").toUpperCase().replace(/\s+/g," ").trim(),btw_nummer:(fd.btw_nummer||"").toUpperCase(),btw_tarief:+String(fd.btw_tarief).replace(",",".")||0,betaaltermijn:+fd.betaaltermijn||14,prijzen_incl_btw:!!fd.prijzen_incl_btw,kor:!!fd.kor,factuur_prefix:fd.factuur_prefix||"",weer_plaats:(fd.weer_plaats||"").trim(),route_auto:!!fd.route_auto,start_tijd:fd.start_tijd||"08:30",min_per_adres:Math.min(240,Math.max(5,+fd.min_per_adres||30))};
+    if(row.adres!==(I.adres||"")||row.postcode!==(I.postcode||"")||row.plaats!==(I.plaats||"")){row.start_lat=null;row.start_lon=null}
     if(row.weer_plaats!==(I.weer_plaats||"")){if(row.weer_plaats){const g=await geocode(row.weer_plaats);if(!g){toast("Plaats voor het weer niet gevonden");return}row.weer_lat=g.lat;row.weer_lon=g.lon}else{row.weer_lat=null;row.weer_lon=null}S.wx={};wxLoaded=false}
     await run(sb.from("instellingen").update(row).eq("id",1),"Bedrijfsgegevens opgeslagen");};
 }
@@ -1557,6 +1565,104 @@ function crewNietSheet(id){
   }});
 }
 
+/* ---------- slimme planner: snelste route per dag ---------- */
+const WEGFACTOR=1.3, KMH=35; // hemelsbreed × wegfactor, gemiddelde snelheid in de regio
+function km(a,b){const R=6371,t=x=>x*Math.PI/180;const dLa=t(b.lat-a.lat),dLo=t(b.lon-a.lon);const h=Math.sin(dLa/2)**2+Math.cos(t(a.lat))*Math.cos(t(b.lat))*Math.sin(dLo/2)**2;return 2*R*Math.asin(Math.sqrt(h))*WEGFACTOR}
+const rijMin=d=>Math.round(d/KMH*60);
+function padLengte(start,pts){let s=0,p=start;pts.forEach(q=>{if(p)s+=km(p,q);p=q});return s}
+// kortste open route vanaf start: dichtstbijzijnde buur + 2-opt verbetering
+function besteVolgorde(start,pts){
+  if(pts.length<2)return pts.slice();
+  const rest=pts.slice(),out=[];let cur=start||rest.shift();if(!start)out.push(cur);
+  while(rest.length){let bi=0,bd=Infinity;rest.forEach((q,i)=>{const d=km(cur,q);if(d<bd){bd=d;bi=i}});cur=rest.splice(bi,1)[0];out.push(cur)}
+  const L=r=>padLengte(start,r);let best=L(out),beter=true,ronde=0;
+  while(beter&&ronde++<60){beter=false;
+    for(let i=0;i<out.length-1;i++)for(let j=i+1;j<out.length;j++){const r=out.slice(0,i).concat(out.slice(i,j+1).reverse(),out.slice(j+1));const l=L(r);if(l<best-0.01){out.splice(0,out.length,...r);best=l;beter=true}}}
+  return out;
+}
+async function zorgVoorPunten(klanten){
+  for(const k of klanten){
+    if(k.lat!=null&&k.lon!=null)continue;
+    const p=await zoekPunt(k);
+    if(p&&p.lat!=null){Object.assign(k,p);sb.from("klanten").update(p).eq("id",k.id).then(()=>{})}
+  }
+}
+async function startPunt(){
+  const I=S.inst||{};
+  if(I.start_lat!=null&&I.start_lon!=null)return{lat:I.start_lat,lon:I.start_lon};
+  if(!I.adres&&!I.postcode)return null;
+  const p=await zoekPunt({adres:I.adres,postcode:I.postcode,woonplaats:I.plaats});
+  if(p&&p.lat!=null){I.start_lat=p.lat;I.start_lon=p.lon;sb.from("instellingen").update({start_lat:p.lat,start_lon:p.lon}).eq("id",1).then(()=>{})}
+  return p&&p.lat!=null?{lat:p.lat,lon:p.lon}:null;
+}
+const tMin=t=>{const [h,m]=String(t||"08:30").split(":").map(Number);return h*60+(m||0)};
+const minT=n=>pad(Math.floor(n/60)%24)+":"+pad(n%60);
+// bereken nieuwe volgorde en tijden voor één dag (per medewerker een eigen route)
+async function routeVoorstel(datum){
+  const I=S.inst||{};const lijst=bOn(datum).filter(b=>b.status==="gepland");
+  if(lijst.length<2)return null;
+  const kl=[...new Set(lijst.map(b=>b.klant_id))].map(id=>S.kById[id]).filter(Boolean);
+  await zorgVoorPunten(kl);
+  const start=await startPunt();
+  const perMw={};lijst.forEach(b=>{(perMw[b.medewerker_id||"ik"]=perMw[b.medewerker_id||"ik"]||[]).push(b)});
+  const wijzig=[];let kmVoor=0,kmNa=0,zonder=[];
+  for(const groep of Object.values(perMw)){
+    const met=groep.filter(b=>{const k=S.kById[b.klant_id];return k&&k.lat!=null});
+    zonder.push(...groep.filter(b=>!met.includes(b)));
+    const vast=met.filter(b=>b.tijd_vast&&b.tijd).sort((a,b)=>hm(a.tijd).localeCompare(hm(b.tijd)));
+    const vrij=met.filter(b=>!vast.includes(b));
+    const pt=b=>{const k=S.kById[b.klant_id];return{lat:k.lat,lon:k.lon,b}};
+    const oud=groep.slice().sort((a,b)=>(a.volgorde-b.volgorde)||hm(a.tijd).localeCompare(hm(b.tijd))).filter(b=>met.includes(b)).map(pt);
+    kmVoor+=padLengte(start,oud);
+    // begin waar de dag begint: bij vaste vroege afspraak eerst daar
+    let orde=besteVolgorde(start,vrij.map(pt));
+    // vaste afspraken op hun tijd invoegen
+    let t=tMin(hm(I.start_tijd)||"08:30");const per=+I.min_per_adres||30;const res=[];let pos=start;const vq=vast.map(pt);
+    const plaats=(p,tijd,isVast)=>{if(pos)t+=rijMin(km(pos,p));if(isVast)t=tMin(hm(p.b.tijd));res.push({b:p.b,tijd:isVast?hm(p.b.tijd):minT(t)});t+=per;pos=p};
+    for(const p of orde){while(vq.length&&tMin(hm(vq[0].b.tijd))<=t+(pos?rijMin(km(pos,p)):0)){plaats(vq.shift(),null,true)}plaats(p,null,false)}
+    while(vq.length)plaats(vq.shift(),null,true);
+    kmNa+=padLengte(start,res.map(r=>({lat:S.kById[r.b.klant_id].lat,lon:S.kById[r.b.klant_id].lon})));
+    res.forEach((r,i)=>wijzig.push({b:r.b,tijd:r.tijd}));
+  }
+  // volgorde over de hele dag: op tijd
+  wijzig.sort((a,b)=>a.tijd.localeCompare(b.tijd));
+  const n0=wijzig.length;zonder.forEach(b=>wijzig.push({b,tijd:hm(b.tijd)||null}));
+  wijzig.forEach((w,i)=>w.volgorde=i);
+  return{datum,wijzig,kmVoor:Math.round(kmVoor*10)/10,kmNa:Math.round(kmNa*10)/10,zonder,start:!!start,geplaatst:n0};
+}
+async function routeToepassen(v){
+  for(const w of v.wijzig){
+    const patch={volgorde:w.volgorde};if(w.tijd&&!w.b.tijd_vast)patch.tijd=w.tijd;
+    if(w.b.volgorde===patch.volgorde&&(!patch.tijd||hm(w.b.tijd)===patch.tijd))continue;
+    const {error}=await sb.from("beurten").update(patch).eq("id",w.b.id);if(error){toast("Route opslaan mislukt: "+error.message);return false}
+  }
+  return true;
+}
+async function routeSheet(datum){
+  $("#loading").hidden=false;const v=await routeVoorstel(datum);$("#loading").hidden=true;
+  if(!v){toast("Er moeten minstens 2 geplande adressen op deze dag staan");return}
+  const winst=Math.max(0,v.kmVoor-v.kmNa);
+  sheet("Snelste route "+nice(datum),`
+    <div class="full summary" style="margin:0;grid-template-columns:repeat(2,1fr)">
+      <div class="stat"><div class="k">Nu</div><div class="v">${String(v.kmVoor).replace(".",",")} km</div><div class="s">geschat</div></div>
+      <div class="stat"><div class="k">Snelste route</div><div class="v">${String(v.kmNa).replace(".",",")} km</div><div class="s">${winst>=0.5?String(Math.round(winst*10)/10).replace(".",",")+" km korter":"al bijna optimaal"}</div></div>
+    </div>
+    ${v.start?"":`<div class="full sub">Tip: vul je adres in bij Meer → Bedrijfsgegevens, dan begint de route bij jou thuis.</div>`}
+    <div class="full"><table class="tbl">${v.wijzig.map((w,i)=>{const k=S.kById[w.b.klant_id]||{};return `<tr><td>${i+1}.</td><td><strong>${esc(w.tijd||"—")}</strong>${w.b.tijd_vast?' <span class="pill p-plain">vast</span>':""}</td><td>${esc(k.naam||"?")}${mwTag(w.b.medewerker_id)}<div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}</div></td></tr>`}).join("")}</table></div>
+    ${v.zonder.length?`<div class="full sub">${v.zonder.length} adres(sen) konden niet op de kaart worden gevonden en staan onderaan. Controleer daar straat en postcode.</div>`:""}
+    <div class="full sub">Afstanden zijn een schatting (hemelsbreed plus toeslag voor de weg). Begintijd ${esc(hm(S.inst.start_tijd)||"08:30")}, ${S.inst.min_per_adres||30} minuten per adres; aan te passen bij Meer → Bedrijfsgegevens.</div>
+  `,{saveLabel:"Route gebruiken",onSave:async()=>{const ok=await routeToepassen(v);if(ok){toast("Route aangepast");await reload()}return ok}});
+}
+// automatisch na inplannen of verzetten
+let autoBezig=false;
+async function autoRoute(datums){
+  if(!S.inst||S.inst.route_auto===false||autoBezig)return;
+  autoBezig=true;let n=0;
+  try{for(const d of [...new Set(datums)].filter(Boolean)){if(d<today())continue;const v=await routeVoorstel(d);if(v&&await routeToepassen(v))n++}}
+  finally{autoBezig=false}
+  if(n){await reload();toast(n===1?"Snelste route bijgewerkt":"Snelste route bijgewerkt voor "+n+" dagen")}
+}
+
 /* ---------- acties ---------- */
 async function swap(id,dir){
   const b=S.beurten.find(x=>x.id===id);const list=bOn(b.datum);const i=list.indexOf(b),j=i+dir;
@@ -1580,7 +1686,8 @@ async function planMany(klanten,datum){
   let t=$("#rTijd").value||"08:30";const step=+$("#rMin").value||30;
   const start=bOn(datum).length;
   const rows=klanten.map((k,i)=>{const r={klant_id:k.id,datum,tijd:t,bedrag:+k.prijs||0,volgorde:start+i,medewerker_id:($("#rMw")&&$("#rMw").value)||null};t=addMin(t,step);return r});
-  await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" gepland op "+nice(datum));
+  const ok=await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" gepland op "+nice(datum));
+  if(ok)autoRoute([datum]);
 }
 
 function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,3000)}
@@ -1602,6 +1709,7 @@ document.addEventListener("click",async e=>{
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
   if(t.id==="copyDayBtn"){copySheet(sel);return}
   if(t.id==="planNieuw"){planNieuwSheet();return}
+  if(t.id==="routeBtn"){routeSheet(sel);return}
   if(t.id==="crewAgenda"){sheet("Agenda op je telefoon",`<div class="full list" id="agBox"></div>`,{});renderAgenda($("#agBox"));return}
   if(t.id==="meerBack"){meerMode="";renderMeer();return}
   if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
@@ -1655,7 +1763,7 @@ document.addEventListener("dragend",e=>{const m=e.target.closest&&e.target.close
 document.addEventListener("dragover",e=>{const c=e.target.closest&&e.target.closest("[data-drop]");if(!c)return;e.preventDefault();$$(".col.drop").forEach(x=>x!==c&&x.classList.remove("drop"));c.classList.add("drop")});
 document.addEventListener("drop",async e=>{const c=e.target.closest&&e.target.closest("[data-drop]");if(!c)return;e.preventDefault();c.classList.remove("drop");
   const id=e.dataTransfer.getData("text/plain");const b=S.beurten.find(x=>x.id===id);if(!b||b.datum===c.dataset.drop)return;
-  await run(sb.from("beurten").update({datum:c.dataset.drop,volgorde:bOn(c.dataset.drop).length}).eq("id",id),"Verplaatst naar "+nice(c.dataset.drop))});
+  const ok=await run(sb.from("beurten").update({datum:c.dataset.drop,volgorde:bOn(c.dataset.drop).length}).eq("id",id),"Verplaatst naar "+nice(c.dataset.drop));if(ok)autoRoute([c.dataset.drop])});
 
 $("#prev").onclick=()=>{sel=addDays(sel,mode==="week"?-7:-1);renderPlanning()};
 $("#next").onclick=()=>{sel=addDays(sel,mode==="week"?7:1);renderPlanning()};
