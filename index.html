@@ -91,6 +91,9 @@ a.btn{text-decoration:none;display:inline-block}
 .lf .lf-msg{display:none;position:absolute;inset:0;place-items:center;color:var(--muted);font-size:13px;text-align:center;padding:12px}
 .lf.lf-err img,.lf.lf-err .pin{display:none}
 .lf.lf-err .lf-msg{display:grid}
+.banner{margin-top:10px;border-color:var(--stripe);justify-content:space-between}
+.startbox{background:var(--surface2);border-radius:8px;padding:10px}
+.startbox input[type=date],.startbox input[type=time],#pnRows input{padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:auto}
 .ac{position:relative}
 .ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px var(--shadow);overflow:hidden;text-transform:none;letter-spacing:0}
 .ac-item{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font-size:15px;font-weight:500;color:var(--ink)}
@@ -335,7 +338,7 @@ nav.tabs svg{width:22px;height:22px}
 <div class="stripe" aria-hidden="true"></div>
 <div class="loading" id="loading" hidden>Bijwerken…</div>
 
-<div class="wrap"><div class="summary" id="summary"></div></div>
+<div class="wrap"><div class="summary" id="summary"></div><div id="nietGepland"></div></div>
 
 <main class="wrap">
   <!-- PLANNING -->
@@ -663,7 +666,32 @@ function render(){
   if(tab==="betalingen")renderPay();
   if(tab==="meer")renderMeer();
 }
+// actieve klanten zonder geplande beurt
+const ongepland=()=>S.klanten.filter(k=>k.actief&&!k.volgende_beurt);
+function eersteDatum(k){const b=addDays(today(),1);return eerstMogelijk(b,k)}
+function renderNietGepland(){
+  const box=$("#nietGepland");if(!box)return;
+  const l=ongepland().filter(k=>!k.laatste_beurt);
+  box.innerHTML=l.length?`<div class="panel banner"><span><strong>${l.length} ${l.length===1?"klant staat":"klanten staan"} nog niet in de planning.</strong> Kies een startdatum, dan loopt de ronde daarna vanzelf door.</span><button class="btn yellow small" type="button" id="planNieuw">Inplannen</button></div>`:"";
+}
+function planNieuwSheet(){
+  const l=ongepland().filter(k=>!k.laatste_beurt).sort((a,b)=>(a.woonplaats||"").localeCompare(b.woonplaats||"")||(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
+  if(!l.length){toast("Alle klanten staan in de planning");return}
+  sheet("Startdatum per klant",`
+    <div class="full sub">De datum staat al op de eerstvolgende vaste wasdag van de klant. Pas aan waar nodig en tik op <strong>Inplannen</strong>.</div>
+    <div class="full list" id="pnRows">${l.map(k=>`<div class="kl" style="flex-wrap:wrap"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))} · ${esc(freqText(k))}</div></div>
+      <div class="meta" style="flex-direction:row;align-items:center;gap:6px"><input type="date" data-pn-d="${k.id}" value="${eersteDatum(k)}" aria-label="Startdatum ${esc(k.naam)}"><input type="time" data-pn-t="${k.id}" value="09:00" step="300" aria-label="Tijd ${esc(k.naam)}"></div></div>`).join("")}</div>
+  `,{saveLabel:"Inplannen",onSave:async()=>{
+    const rows=l.map(k=>({klant_id:k.id,datum:($(`[data-pn-d="${k.id}"]`).value||""),tijd:($(`[data-pn-t="${k.id}"]`).value||null),bedrag:+k.prijs||0})).filter(r=>r.datum);
+    if(!rows.length){toast("Vul minstens één datum in");return false}
+    const per={};rows.forEach(r=>{r.volgorde=(per[r.datum]=(per[r.datum]??bOn(r.datum).length))+0;per[r.datum]++});
+    const ok=await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" ingepland");
+    if(ok){sel=rows.map(r=>r.datum).sort()[0];mode="dag";tab="planning";setTab()}
+    return ok?true:false;
+  }});
+}
 function renderSummary(){
+  renderNietGepland();
   const t=today(),ws=monday(t),we=addDays(ws,6);
   const vandaag=bOn(t);
   const week=S.beurten.filter(b=>b.datum>=ws&&b.datum<=we&&b.status!=="overgeslagen");
@@ -864,6 +892,8 @@ function klantForm(id){
     <div class="full"><div class="sub" style="margin-bottom:6px">Prijs per onderdeel (optioneel). Bij Klaar vink je aan wat je gedaan hebt; de prijs hierboven wordt dan het totaal.</div>
       <div id="ondList" class="list" style="gap:6px">${ondHtml()}</div>
       <div class="chips" style="margin-top:6px"><button type="button" id="ondAdd">+ Onderdeel</button>${["Voorkant","Achterkant","Zijkant","Dakramen","Serre","Kozijnen"].map(x=>`<button type="button" data-ondq="${x}">+ ${x}</button>`).join("")}</div></div>
+    ${!id||(!k.volgende_beurt&&!k.laatste_beurt)?`<div class="full startbox"><div class="sub" style="margin-bottom:6px"><strong>Startdatum ronde</strong>: de eerste beurt. Daarna plant de app elke volgende beurt vanzelf in.</div>
+      <div class="filters"><input type="date" id="f-start" value="${esc(eersteDatum(k))}" aria-label="Startdatum"><input type="time" id="f-starttijd" value="09:00" step="300" aria-label="Tijd"><label class="chk sub" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="f-geenstart"> nog niet inplannen</label></div></div>`:""}
     <label class="full">Notitie (zie je bij elke beurt)<textarea id="f-not" name="notitie" rows="2" placeholder="Bijv. achterom, poort zit op slot">${esc(k.notitie)}</textarea></label>
     <div class="full chips" id="noteChips">${NOTE_CHIPS.map(c=>`<button type="button" data-chip="${esc(c)}">+ ${esc(c)}</button>`).join("")}</div>
     ${id?`<div class="full"><div class="sub" style="margin-bottom:6px">Foto (bijv. achterom, poort of sleutelkastje)</div>
@@ -882,9 +912,11 @@ function klantForm(id){
       let prijs=Number(String(fd.prijs).replace(",","."))||0;
       if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
       const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value),...(punt&&$("#f-adres").value.trim()===String(adresBijPunt).trim()?punt:{lat:null,lon:null,rd_x:null,rd_y:null}),notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
-      if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
-      const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
-      if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
+      const st=$("#f-start"),start=st&&!$("#f-geenstart").checked?st.value:"",stijd=$("#f-starttijd")?$("#f-starttijd").value:"";
+      const eerste=async kid=>{if(!start)return;const {error}=await sb.from("beurten").insert({klant_id:kid,datum:start,tijd:stijd||null,bedrag:prijs,volgorde:bOn(start).length});if(error)toast("Klant opgeslagen, maar inplannen mislukt: "+error.message)};
+      if(id){const ok=await run(sb.from("klanten").update(row).eq("id",id),start?"Klant opgeslagen en ingepland op "+nice(start):"Klant opgeslagen");if(ok&&start){await eerste(id);await reload()}return ok?true:false}
+      const res=await run(sb.from("klanten").insert(row).select().single(),start?"Klant toegevoegd en ingepland op "+nice(start):"Klant toegevoegd");
+      if(res&&res.id){await eerste(res.id);await reload()}
       return res?true:false;
     },
     onDelete:id?async()=>{await run(sb.from("klanten").delete().eq("id",id),"Klant verwijderd")}:null,
@@ -899,6 +931,10 @@ function klantForm(id){
       const setM=(sel,list)=>$$(sel+" input").forEach(i=>i.checked=list.includes(+i.value));
       $("#fWinter").onclick=()=>setM("#fPauze",[12,1,2]);$("#fWinter2").onclick=()=>setM("#fPauze",[11,12,1,2,3]);$("#fNoPauze").onclick=()=>setM("#fPauze",[]);
       $$("[data-preset]").forEach(x=>x.onclick=()=>setM("#fVaste",x.dataset.preset.split(",").map(Number)));
+      const sd=$("#f-start");if(sd){let zelf=false;sd.addEventListener("input",()=>{zelf=true});
+        const herbereken=()=>{if(zelf)return;const tmp={vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value)};sd.value=eersteDatum(tmp)};
+        ["#fDagen","#fPauze","#fVaste"].forEach(q=>{const e=$(q);if(e)e.addEventListener("change",herbereken)});$$("[data-fm],[data-preset],#fWinter,#fWinter2,#fNoPauze").forEach(x=>x.addEventListener("click",()=>setTimeout(herbereken,0)));
+        $("#f-geenstart").onchange=e=>{sd.disabled=e.target.checked;$("#f-starttijd").disabled=e.target.checked};}
       const syncPrice=()=>{if(ond.some(o=>String(o.naam).trim())){const tot=ond.reduce((t,o)=>t+(Number(String(o.prijs).replace(",","."))||0),0);$("#f-prijs").value=tot.toFixed(2)}};
       const redraw=()=>{$("#ondList").innerHTML=ondHtml();syncPrice()};
       $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined){ond[+a.op].prijs=e.target.value;syncPrice()}});
@@ -1565,6 +1601,7 @@ document.addEventListener("click",async e=>{
   if(t.id==="shiftBtn"){shiftSheet(sel);return}
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
   if(t.id==="copyDayBtn"){copySheet(sel);return}
+  if(t.id==="planNieuw"){planNieuwSheet();return}
   if(t.id==="crewAgenda"){sheet("Agenda op je telefoon",`<div class="full list" id="agBox"></div>`,{});renderAgenda($("#agBox"));return}
   if(t.id==="meerBack"){meerMode="";renderMeer();return}
   if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
