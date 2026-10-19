@@ -1334,7 +1334,7 @@ async function maakFactuur(klantId,beurtIds){
 }
 
 /* ---------- Meer ---------- */
-const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bank","🏦","Bankafschriften","Betalingen koppelen en uitgaven boeken"],["export","📦","Export voor boekhouder","Excel en alle bonnen in één bestand"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
 function renderMeer(){
   $("#meerBack").hidden=!meerMode;
   const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
@@ -1343,6 +1343,8 @@ function renderMeer(){
   if(meerMode==="btw")return renderBtw();
   if(meerMode==="kosten")return renderKosten();
   if(meerMode==="ib")return renderIB();
+  if(meerMode==="bank")return renderBank();
+  if(meerMode==="export")return renderExport();
   if(meerMode==="agenda")return renderAgenda($("#meerBody"));
   if(meerMode==="bedrijf")return renderBedrijf();
   if(meerMode==="medewerkers")return renderMws();
@@ -1405,20 +1407,21 @@ async function renderKosten(){
   const tot=l.reduce((a,k)=>({inc:a.inc+(+k.bedrag_incl||0),btw:a.btw+(+k.btw_bedrag||0)}),{inc:0,btw:0});
   const perMaand={};l.forEach(k=>{const m=k.datum.slice(0,7);(perMaand[m]=perMaand[m]||[]).push(k)});
   box.innerHTML=`
-    <div class="filters"><label class="sub" for="kJaar">Jaar</label><select id="kJaar">${yrs.map(y=>`<option ${y===Y?"selected":""}>${y}</option>`).join("")}</select><button class="btn small" type="button" id="kostNieuw">+ Kosten</button></div>
+    <div class="filters"><label class="sub" for="kJaar">Jaar</label><select id="kJaar">${yrs.map(y=>`<option ${y===Y?"selected":""}>${y}</option>`).join("")}</select><label class="btn yellow small" for="snelBon" style="cursor:pointer">📷 Bon toevoegen</label><input id="snelBon" type="file" accept="image/*,application/pdf" hidden><button class="btn ghost small" type="button" id="kostNieuw">+ Zonder bon</button></div>
     <div class="summary" style="margin:0;grid-template-columns:repeat(2,1fr)">
       <div class="stat"><div class="k">Kosten ${Y}</div><div class="v">${euro(tot.inc)}</div><div class="s">${l.length} bonnen, incl. btw</div></div>
       <div class="stat"><div class="k">${kor?"Btw (KOR: niet terug)":"Btw terug te vragen"}</div><div class="v">${euro(kor?0:tot.btw)}</div><div class="s">${kor?"met KOR vraag je geen btw terug":"rubriek 5b"}</div></div>
     </div>
-    ${l.length?Object.entries(perMaand).map(([m,ks])=>{const [y,mm]=m.split("-");return `<div class="group-h"><span>${MNL[+mm-1]} ${y}</span><span>${euro(ks.reduce((a,k)=>a+(+k.bedrag_incl||0),0))}</span></div>`+ks.map(k=>`<button class="kl" type="button" data-kost="${k.id}"><div class="main"><div class="name">${esc(k.omschrijving||k.categorie)}${k.investering?' <span class="pill p-plain">investering</span>':""}${k.bon_pad?" 📎":""}</div><div class="sub">${nice(k.datum)} · ${esc(k.categorie)}${k.btw_tarief?` · btw ${String(k.btw_tarief).replace(".0","")}% ${euro(k.btw_bedrag)}`:" · geen btw"}</div></div><div class="meta"><strong>${euro(k.bedrag_incl)}</strong></div></button>`).join("")}).join(""):`<div class="empty">Nog geen kosten in ${Y}. Tik op <strong>+ Kosten</strong> en maak een foto van de bon.</div>`}
+    ${l.length?Object.entries(perMaand).map(([m,ks])=>{const [y,mm]=m.split("-");return `<div class="group-h"><span>${MNL[+mm-1]} ${y}</span><span>${euro(ks.reduce((a,k)=>a+(+k.bedrag_incl||0),0))}</span></div>`+ks.map(k=>`<button class="kl" type="button" data-kost="${k.id}"><div class="main"><div class="name">${esc(k.omschrijving||k.categorie)}${k.investering?' <span class="pill p-plain">investering</span>':""}${k.bon_pad?" 📎":' <span class="pill p-warn">bon ontbreekt</span>'}</div><div class="sub">${nice(k.datum)} · ${esc(k.categorie)}${k.btw_tarief?` · btw ${String(k.btw_tarief).replace(".0","")}% ${euro(k.btw_bedrag)}`:" · geen btw"}</div></div><div class="meta"><strong>${euro(k.bedrag_incl)}</strong></div></button>`).join("")}).join(""):`<div class="empty">Nog geen kosten in ${Y}. Tik op <strong>+ Kosten</strong> en maak een foto van de bon.</div>`}
     <div class="sub">Bewaar je bonnen 7 jaar; met een foto in de app heb je ze altijd bij de hand.</div>`;
   $("#kJaar").onchange=e=>{kostJaar=+e.target.value;renderKosten()};
   $("#kostNieuw").onclick=()=>kostForm(null);
+  $("#snelBon").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)kostForm(null,{},null,f);e.target.value=""};
   box.querySelectorAll("[data-kost]").forEach(b=>b.onclick=()=>kostForm(l.find(k=>k.id===b.dataset.kost)));
 }
-function kostForm(k){
-  const nieuw=!k;k=k||{datum:today(),categorie:KOST_CAT[0],btw_tarief:21,afschrijf_jaren:5,restwaarde:0};
-  let bon=k.bon_pad||"",bonBlob=null;
+function kostForm(k,preset,naOpslaan,startBestand){
+  const nieuw=!k;k=k||{datum:today(),categorie:KOST_CAT[0],btw_tarief:21,afschrijf_jaren:5,restwaarde:0,...(preset||{})};
+  let bon=k.bon_pad||"",bonBlob=null,bonExt="jpg",bonType="image/jpeg";
   sheet(nieuw?"Nieuwe kosten":"Kosten wijzigen",`
     <label>Datum<input id="k-dat" name="datum" type="date" required value="${esc(k.datum)}"></label>
     <label>Categorie<select id="k-cat" name="categorie">${KOST_CAT.map(c=>`<option ${k.categorie===c?"selected":""}>${c}</option>`).join("")}</select></label>
@@ -1433,17 +1436,18 @@ function kostForm(k){
       <label class="sub">Restwaarde (€)<input id="k-rest" name="restwaarde" type="number" step="1" min="0" value="${esc(k.restwaarde??0)}" style="width:110px"></label></div>
       <div class="sub">Een investering trek je niet in één keer af maar verdeeld over de jaren (afschrijving). De btw vraag je wel meteen helemaal terug.</div></div>
     <div class="full"><div class="sub" style="margin-bottom:6px">Bon</div><div id="k-bonbox" class="sub">${bon?"Bon laden…":"Nog geen bon."}</div>
-      <div class="row-acts"><label class="btn ghost small" for="k-bonin" style="cursor:pointer">📷 ${bon?"Andere bon":"Foto van bon"}</label><input id="k-bonin" type="file" accept="image/*" hidden></div></div>
+      <div class="row-acts"><label class="btn ghost small" for="k-bonin" style="cursor:pointer">📷 ${bon?"Andere bon":"Foto of PDF van bon"}</label><input id="k-bonin" type="file" accept="image/*,application/pdf" hidden></div></div>
   `,{
     onSave:async fd=>{
       const inc=r2(String(fd.bedrag_incl).replace(",","."));if(!(inc>0)){toast("Vul het bedrag in");return false}
       const tar=+fd.btw_tarief;let btw=fd.btw_bedrag===""?r2(inc-inc/(1+tar/100)):r2(String(fd.btw_bedrag).replace(",","."));
       if(tar===0)btw=0;if(btw>inc){toast("Het btw-bedrag kan niet hoger zijn dan het totaal");return false}
-      if(bonBlob){const p=`bonnen/${(fd.datum||today()).slice(0,4)}/${Date.now()}.jpg`;const {error}=await sb.storage.from("fotos").upload(p,bonBlob,{contentType:"image/jpeg"});if(error){toast("Bon uploaden mislukt: "+error.message);return false}if(k.bon_pad)sb.storage.from("fotos").remove([k.bon_pad]).then(()=>{});bon=p}
+      if(bonBlob){const p=`bonnen/${(fd.datum||today()).slice(0,4)}/${Date.now()}.${bonExt}`;const {error}=await sb.storage.from("fotos").upload(p,bonBlob,{contentType:bonType});if(error){toast("Bon uploaden mislukt: "+error.message);return false}if(k.bon_pad)sb.storage.from("fotos").remove([k.bon_pad]).then(()=>{});bon=p}
       const row={datum:fd.datum,categorie:fd.categorie,omschrijving:(fd.omschrijving||"").trim(),bedrag_incl:inc,btw_tarief:tar,btw_bedrag:btw,investering:!!fd.investering,afschrijf_jaren:+fd.afschrijf_jaren||5,restwaarde:r2(fd.restwaarde||0),bon_pad:bon};
-      const {error}=nieuw?await sb.from("kosten").insert(row):await sb.from("kosten").update(row).eq("id",k.id);
+      const {data:res,error}=nieuw?await sb.from("kosten").insert(row).select("id").single():await sb.from("kosten").update(row).eq("id",k.id).select("id").single();
       if(error){toast("Opslaan mislukt: "+error.message);return false}
-      toast(nieuw?"Kosten toegevoegd":"Kosten opgeslagen");kostJaar=+row.datum.slice(0,4);renderKosten();return true;
+      toast(nieuw?"Kosten toegevoegd":"Kosten opgeslagen");kostJaar=+row.datum.slice(0,4);
+      if(naOpslaan)await naOpslaan(res&&res.id);else renderKosten();return true;
     },
     onDelete:nieuw?null:async()=>{const {error}=await sb.from("kosten").delete().eq("id",k.id);if(error){toast(error.message);return}if(k.bon_pad)sb.storage.from("fotos").remove([k.bon_pad]).then(()=>{});toast("Verwijderd");renderKosten()},
     extra:()=>{
@@ -1453,8 +1457,14 @@ function kostForm(k){
       $("#k-bed").addEventListener("input",calc);$("#k-tar").addEventListener("change",()=>{btwZelf=false;calc()});$("#k-cat").addEventListener("change",calc);
       $("#k-btw").addEventListener("input",()=>{btwZelf=true});
       $("#k-inv").onchange=e=>{$("#k-invbox").hidden=!e.target.checked};
-      if(bon)signedUrl(bon).then(u=>{const b=$("#k-bonbox");if(b)b.innerHTML=u?`<img class="photo" src="${esc(u)}" alt="Bon" style="max-height:260px">`:"Bon kon niet geladen worden."});
-      $("#k-bonin").onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{bonBlob=await compressImage(f,1600,.85);$("#k-bonbox").innerHTML=`<img class="photo" src="${URL.createObjectURL(bonBlob)}" alt="Bon" style="max-height:260px"><div class="sub">Wordt opgeslagen bij Opslaan.</div>`}catch(x){toast(x.message)}};
+      if(bon)signedUrl(bon).then(u=>{const b=$("#k-bonbox");if(!b)return;if(!u){b.innerHTML="Bon kon niet geladen worden.";return}b.innerHTML=/\.pdf$/i.test(bon)?`<a class="btn ghost small" href="${esc(u)}" target="_blank" rel="noopener">📄 PDF-bon openen</a>`:`<img class="photo" src="${esc(u)}" alt="Bon" style="max-height:260px">`});
+      const neemBestand=async f=>{if(!f)return;try{
+        if(f.type==="application/pdf"||/\.pdf$/i.test(f.name)){if(f.size>10*1024*1024){toast("PDF is groter dan 10 MB");return}bonBlob=f;bonExt="pdf";bonType="application/pdf";$("#k-bonbox").innerHTML=`<div>📄 ${esc(f.name)}</div><div class="sub">Wordt opgeslagen bij Opslaan.</div>`}
+        else{bonBlob=await compressImage(f,1600,.85);bonExt="jpg";bonType="image/jpeg";$("#k-bonbox").innerHTML=`<img class="photo" src="${URL.createObjectURL(bonBlob)}" alt="Bon" style="max-height:260px"><div class="sub">Wordt opgeslagen bij Opslaan.</div>`}
+        }catch(x){toast(x.message)}};
+      $("#k-bonin").onchange=e=>neemBestand(e.target.files&&e.target.files[0]);
+      if(startBestand)neemBestand(startBestand);
+      if(nieuw&&k.bedrag_incl)calc();
     }
   });
 }
@@ -1523,6 +1533,172 @@ async function renderIB(){
   $("#ib-start").onchange=e=>zet("startersaftrek",e.target.checked);
   $("#ibCopy").onclick=async()=>{const txt=[`Jaaroverzicht ${Y} – ${I.bedrijfsnaam||""}`,`Omzet ${kor?"(KOR)":"excl. btw"}: ${euro(omzet)} (${beurten.length} beurten)`,...Object.entries(perCat).map(([c,v])=>`Kosten ${c}: ${euro(r2(v))}`),...afs.map(x=>`Afschrijving ${x.k.omschrijving||x.k.categorie}: ${euro(x.v)}`),`Winst uit onderneming: ${euro(winst)}`,`Urencriterium: ${uren?"ja":"nee"}${start?", startersaftrek":""}`,`Belastbare winst (indicatie): ${euro(belastbaar)}`].join("\n");
     try{await navigator.clipboard.writeText(txt);toast("Gekopieerd")}catch(e){sheet("Jaaroverzicht",`<label class="full">Tekst<textarea rows="10" readonly>${esc(txt)}</textarea></label>`,{})}};
+}
+
+/* ---------- bankafschriften inladen ---------- */
+function nlBedrag(s){s=String(s||"").trim().replace(/[€\s]/g,"");if(!s)return NaN;
+  if(/,\d{1,2}$/.test(s))s=s.replace(/\./g,"").replace(",",".");else s=s.replace(/,/g,"");return parseFloat(s)}
+function nlDatum(s){s=String(s||"").trim();let m;
+  if(m=s.match(/^(\d{4})-?(\d{2})-?(\d{2})/))return `${m[1]}-${m[2]}-${m[3]}`;
+  if(m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/))return `${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+  return ""}
+function hashId(s){let h1=0x811c9dc5,h2=0x1000193;for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,16777619)>>>0;h2=Math.imul(h2^c,2246822519)>>>0}return "t"+h1.toString(36)+h2.toString(36)}
+function txnId(t,n){return hashId([t.datum,t.bedrag.toFixed(2),t.tegenrekening,t.tegenpartij,t.omschrijving,n].join("|"))}
+function leesCamt(xml){
+  const doc=new DOMParser().parseFromString(xml,"application/xml");const out=[];
+  const q=(el,name)=>el?[...el.getElementsByTagNameNS("*",name)]:[];const tx=(el,name)=>{const e=q(el,name)[0];return e?e.textContent.trim():""};
+  q(doc,"Ntry").forEach(e=>{
+    const amt=parseFloat(tx(e,"Amt"));if(isNaN(amt))return;const credit=tx(e,"CdtDbtInd")==="CRDT";
+    const bd=q(e,"BookgDt")[0]||q(e,"ValDt")[0];const datum=nlDatum(tx(bd,"Dt")||tx(bd,"DtTm"));
+    const rp=q(e,"RltdPties")[0];const partij=credit?(q(rp,"Dbtr")[0]||q(rp,"UltmtDbtr")[0]):(q(rp,"Cdtr")[0]||q(rp,"UltmtCdtr")[0]);
+    const rek=credit?q(rp,"DbtrAcct")[0]:q(rp,"CdtrAcct")[0];
+    out.push({datum,bedrag:credit?amt:-amt,tegenpartij:tx(partij,"Nm"),tegenrekening:tx(rek,"IBAN"),omschrijving:(q(e,"Ustrd").map(x=>x.textContent.trim()).join(" ")||tx(e,"AddtlNtryInf")).replace(/\s+/g," ")});
+  });
+  return out;
+}
+function leesBankCsv(text){
+  const rows=parseCSV(text);if(!rows.length)return[];
+  const h=rows[0].map(x=>normH(x));
+  const has=keys=>{for(const w of keys){const i=h.findIndex(x=>x===w);if(i>=0)return i}for(const w of keys){const i=h.findIndex(x=>x.startsWith(w));if(i>=0)return i}return -1};
+  let iD=has(["datum","boekdatum","transactiedatum","date"]),iB=has(["bedrag","bedrageur","amount"]),iAB=has(["afbij","af-bij","creditdebet","debetcredit","credit-debet"]);
+  let iN=has(["naamtegenpartij","tegenrekeninghouder","naamomschrijving","naam-omschrijving","tegenpartij","name","naam","counterparty"]),iR=has(["tegenrekeningiban","tegenrekeningnummer","tegenrekening","counterpartyiban","iban-tegenpartij","counterparty"]);
+  const iO=["omschrijving-1","omschrijving-2","omschrijving-3","mededelingen","omschrijving","description","betalingskenmerk"].map(k=>h.indexOf(normH(k))).filter(i=>i>=0);
+  let data=rows.slice(1);
+  if(iD<0||iB<0){ // ABN AMRO .TAB: geen kopregel
+    if(rows[0].length>=8&&/^\d{8}$/.test(String(rows[0][2]).trim())){return rows.map(r=>{const o=String(r[7]||"").replace(/\s+/g," ").trim();const nm=(o.match(/\/NAME\/([^/]+)/)||o.match(/Naam:\s*(.+?)(?:\s{2,}|Omschrijving:|$)/)||[])[1]||"";const rk=(o.match(/\/IBAN\/([A-Z0-9]+)/)||o.match(/IBAN:\s*([A-Z0-9]+)/)||[])[1]||"";return{datum:nlDatum(r[2]),bedrag:nlBedrag(r[6]),tegenpartij:nm.trim(),tegenrekening:rk,omschrijving:o}}).filter(t=>t.datum&&!isNaN(t.bedrag))}
+    return[];
+  }
+  return data.map(r=>{let b=nlBedrag(r[iB]);if(iAB>=0){const ab=String(r[iAB]).toLowerCase();if(ab.startsWith("af")||ab.startsWith("d"))b=-Math.abs(b);else b=Math.abs(b)}
+    return{datum:nlDatum(r[iD]),bedrag:b,tegenpartij:iN>=0?String(r[iN]).trim():"",tegenrekening:iR>=0?String(r[iR]).trim():"",omschrijving:iO.map(i=>String(r[i]||"").trim()).filter(Boolean).join(" ").replace(/\s+/g," ")}}).filter(t=>t.datum&&!isNaN(t.bedrag)&&t.bedrag!==0);
+}
+// beste open beurten voor een ontvangen bedrag
+const woorden=s=>String(s||"").toLowerCase().replace(/^(fam\.?|familie|dhr\.?|mevr\.?|mw\.?|de heer|mevrouw)\s+/,"").split(/[^a-z0-9à-ÿ]+/).filter(w=>w.length>2&&!["fam","van","der","den","het","bij"].includes(w));
+function zoekBetaling(t){
+  const open=S.beurten.filter(b=>b.status==="gedaan"&&!b.betaald);const tekst=(t.tegenpartij+" "+t.omschrijving).toLowerCase();
+  const score=k=>{let s=0;woorden(k.naam).forEach(w=>{if(tekst.includes(w))s+=2});if(k.telefoon&&tekst.includes(String(k.telefoon).replace(/\D/g,"").slice(-6)))s+=1;return s};
+  const kand=[];
+  // 1. factuurnummer in de omschrijving
+  const fn=open.filter(b=>b.factuur_nr&&tekst.includes(b.factuur_nr.toLowerCase()));
+  if(fn.length){const nr=fn[0].factuur_nr;const set=open.filter(b=>b.factuur_nr===nr);kand.push({beurten:set,score:10,reden:"factuur "+nr})}
+  // 2. één beurt met hetzelfde bedrag
+  open.filter(b=>Math.abs(+b.bedrag-t.bedrag)<0.01).forEach(b=>{const k=S.kById[b.klant_id]||{};kand.push({beurten:[b],score:3+score(k),reden:"zelfde bedrag"})});
+  // 3. alle open beurten van een klant samen
+  const per={};open.forEach(b=>{(per[b.klant_id]=per[b.klant_id]||[]).push(b)});
+  Object.entries(per).forEach(([kid,l])=>{if(l.length<2)return;const s=r2(l.reduce((a,b)=>a+(+b.bedrag||0),0));if(Math.abs(s-t.bedrag)<0.01){const k=S.kById[kid]||{};kand.push({beurten:l,score:3+score(k),reden:l.length+" beurten samen"})}});
+  kand.sort((a,b)=>b.score-a.score);
+  return kand.filter(k=>k.score>=3).slice(0,3);
+}
+const KOST_HINT=[[/shell|bp |esso|tango|tinq|texaco|total|gulf|argos|avia|tankstation/i,"Brandstof en auto"],[/kpn|vodafone|odido|t-mobile|ziggo|simyo|ben |lebara/i,"Telefoon en internet"],[/gamma|praxis|karwei|hornbach|hubo|bauhaus|toolstation|ladder/i,"Gereedschap en ladders"],[/verzeker|centraal beheer|interpolis|nn |ohra|allianz/i,"Verzekeringen"],[/action|kruidvat|unger|glazenwas|schoonmaak/i,"Schoonmaakmiddelen en materiaal"],[/google|wix|facebook|meta |drukwerk|vistaprint/i,"Reclame en website"]];
+let bankFilter="open";
+async function renderBank(){
+  const box=$("#meerBody");box.innerHTML=`<div class="empty">Transacties laden…</div>`;
+  const {data,error}=await fetchAll(()=>sb.from("banktransacties").select("*").order("datum",{ascending:false}).order("id"));
+  if(error){box.innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
+  const all=data||[],l=all.filter(t=>bankFilter==="alle"||(bankFilter==="open"?t.status==="open":t.status!=="open"));
+  const nOpen=all.filter(t=>t.status==="open").length;
+  box.innerHTML=`
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:8px">
+      <div><strong>Bankafschrift inladen</strong></div>
+      <div class="sub">Download in je internetbankieren je transacties als <strong>CSV</strong> (ING, Rabobank, Knab, bunq), <strong>TXT/TAB</strong> (ABN AMRO) of <strong>CAMT.053</strong> en kies het bestand hier. Dubbele transacties worden overgeslagen, dus een periode opnieuw inladen kan geen kwaad.</div>
+      <div class="row-acts"><label class="btn small" for="bankIn" style="cursor:pointer">📄 Bestand kiezen</label><input id="bankIn" type="file" accept=".csv,.txt,.tab,.xml,.053" hidden></div>
+    </div>
+    <div class="seg" role="group" aria-label="Filter"><button type="button" data-bf="open" aria-pressed="${bankFilter==="open"}">Te doen (${nOpen})</button><button type="button" data-bf="klaar" aria-pressed="${bankFilter==="klaar"}">Verwerkt</button><button type="button" data-bf="alle" aria-pressed="${bankFilter==="alle"}">Alles</button></div>
+    <div class="list">${l.length?l.slice(0,300).map(t=>bankRij(t)).join(""):`<div class="empty">${bankFilter==="open"?(all.length?"Alles is verwerkt. 🎉":"Nog geen transacties ingeladen."):"Niets om te tonen."}</div>`}</div>`;
+  $("#bankIn").onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)bankInladen(f)};
+  $$("[data-bf]").forEach(x=>x.onclick=()=>{bankFilter=x.dataset.bf;renderBank()});
+  box.querySelectorAll("[data-bt]").forEach(x=>x.onclick=()=>bankActie(all.find(t=>t.id===x.dataset.bt),x.dataset.act,x.dataset.i));
+}
+function bankRij(t){
+  const in_=t.bedrag>0;const st={betaling:"Gekoppeld aan betaling",kosten:"Geboekt als kosten",prive:"Privé",genegeerd:"Genegeerd"}[t.status];
+  let acties="";
+  if(t.status==="open"){
+    if(in_){const kand=zoekBetaling(t);acties=kand.map((c,i)=>{const k=S.kById[c.beurten[0].klant_id]||{naam:"?"};return `<button class="btn ok small" type="button" data-bt="${t.id}" data-act="koppel" data-i="${i}">✓ ${esc(k.naam)} · ${c.beurten.map(b=>nice(b.datum)).join(", ")}</button>`}).join("")+`<button class="btn ghost small" type="button" data-bt="${t.id}" data-act="kies">Kies beurt…</button>`}
+    else acties=`<button class="btn small" type="button" data-bt="${t.id}" data-act="kosten">+ Als kosten boeken</button>`;
+    acties+=`<button class="btn ghost small" type="button" data-bt="${t.id}" data-act="prive">Privé</button><button class="btn ghost small" type="button" data-bt="${t.id}" data-act="negeer">Negeren</button>`;
+  }else acties=`<span class="pill ${t.status==="betaling"||t.status==="kosten"?"p-ok":"p-plain"}">${st}</span><button class="btn ghost small" type="button" data-bt="${t.id}" data-act="terug">Ongedaan maken</button>`;
+  return `<div class="kl" style="flex-direction:column;align-items:stretch"><div style="display:flex;justify-content:space-between;gap:10px"><div class="main"><div class="name">${esc(t.tegenpartij||"(geen naam)")}</div><div class="sub">${nice(t.datum)}${t.tegenrekening?" · "+esc(t.tegenrekening):""}</div>${t.omschrijving?`<div class="sub" style="overflow-wrap:anywhere">${esc(t.omschrijving.slice(0,140))}</div>`:""}</div>
+    <div class="meta"><strong style="color:${in_?"var(--ok)":"var(--ink)"}">${in_?"+ ":"− "}${euro(Math.abs(t.bedrag))}</strong></div></div><div class="row-acts">${acties}</div></div>`;
+}
+async function bankInladen(f){
+  try{
+    const txt=await f.text();const l=/<Document[\s>]|camt\.053/i.test(txt.slice(0,2000))?leesCamt(txt):leesBankCsv(txt);
+    if(!l.length){toast("Geen transacties herkend. Kies een CSV-, TXT- of CAMT.053-bestand van je bank.");return}
+    const cnt={};const rows=l.map(t=>{const base=[t.datum,t.bedrag,t.tegenrekening,t.tegenpartij,t.omschrijving].join("|");cnt[base]=(cnt[base]||0)+1;return{id:txnId(t,cnt[base]),datum:t.datum,bedrag:r2(t.bedrag),tegenpartij:t.tegenpartij.slice(0,200),tegenrekening:t.tegenrekening.slice(0,40),omschrijving:t.omschrijving.slice(0,500)}});
+    let nieuw=0;
+    for(let i=0;i<rows.length;i+=300){const part=rows.slice(i,i+300);const {data,error}=await sb.from("banktransacties").upsert(part,{onConflict:"id",ignoreDuplicates:true}).select("id");if(error){toast("Inladen mislukt: "+error.message);return}nieuw+=(data||[]).length}
+    toast(`${l.length} transacties gelezen, ${nieuw} nieuw`);bankFilter="open";renderBank();
+  }catch(e){toast("Bestand lezen mislukt: "+e.message)}
+}
+async function bankActie(t,act,i){
+  if(!t)return;
+  const zet=async patch=>{const {error}=await sb.from("banktransacties").update(patch).eq("id",t.id);if(error){toast(error.message);return false}return true};
+  if(act==="koppel"){const c=zoekBetaling(t)[+i];if(!c)return;const ids=c.beurten.map(b=>b.id);
+    const {error}=await sb.from("beurten").update({betaald:true,betaald_op:t.datum,betaalwijze:"bank"}).in("id",ids);if(error){toast(error.message);return}
+    await zet({status:"betaling",beurt_ids:ids});toast("Betaling gekoppeld");await reload();meerMode="bank";renderMeer();return}
+  if(act==="kies"){const open=S.beurten.filter(b=>b.status==="gedaan"&&!b.betaald).sort((a,b)=>b.datum.localeCompare(a.datum));
+    sheet("Welke beurt is betaald?",`<div class="full sub">${esc(t.tegenpartij)} · ${euro(t.bedrag)} op ${nice(t.datum)}</div><div class="full list">${open.length?open.slice(0,60).map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<label class="chkrow"><span><input type="checkbox" value="${b.id}"> ${esc(k.naam)} · ${nice(b.datum)}</span><span>${euro(b.bedrag)}</span></label>`}).join(""):`<div class="sub">Er staan geen onbetaalde beurten open.</div>`}</div>`,
+      {saveLabel:"Koppelen",onSave:async()=>{const ids=$$(".sheet input[type=checkbox]:checked").map(x=>x.value);if(!ids.length){toast("Kies minstens één beurt");return false}
+        const {error}=await sb.from("beurten").update({betaald:true,betaald_op:t.datum,betaalwijze:"bank"}).in("id",ids);if(error){toast(error.message);return false}
+        await zet({status:"betaling",beurt_ids:ids});toast("Betaling gekoppeld");await reload();meerMode="bank";renderMeer();return true}});return}
+  if(act==="kosten"){const naam=(t.tegenpartij+" "+t.omschrijving);const cat=(KOST_HINT.find(([r])=>r.test(naam))||[])[1]||"Overig";
+    kostForm(null,{datum:t.datum,bedrag_incl:Math.abs(t.bedrag),omschrijving:t.tegenpartij||t.omschrijving.slice(0,60),categorie:cat,btw_tarief:/verzeker/i.test(naam)?0:21},async kid=>{await zet({status:"kosten",kosten_id:kid});meerMode="bank";renderMeer()});return}
+  if(act==="prive"){if(await zet({status:"prive"}))renderBank();return}
+  if(act==="negeer"){if(await zet({status:"genegeerd"}))renderBank();return}
+  if(act==="terug"){
+    if(t.status==="betaling"&&t.beurt_ids&&t.beurt_ids.length)await sb.from("beurten").update({betaald:false,betaald_op:null,betaalwijze:""}).in("id",t.beurt_ids);
+    if(await zet({status:"open",beurt_ids:[],kosten_id:null})){await reload();meerMode="bank";renderMeer()}return}
+}
+
+/* ---------- export voor de boekhouder ---------- */
+let expPeriode=null;
+function perioden(){const y=new Date().getFullYear(),q=Math.floor(new Date().getMonth()/3)+1,out=[];
+  for(let i=0;i<6;i++){let qq=q-i,yy=y;while(qq<1){qq+=4;yy--}out.push({id:yy+"Q"+qq,label:`Q${qq} ${yy}`,van:`${yy}-${pad((qq-1)*3+1)}-01`,tot:iso(new Date(yy,qq*3,0,12))})}
+  [y,y-1].forEach(yy=>out.push({id:yy+"",label:"Heel "+yy,van:yy+"-01-01",tot:yy+"-12-31"}));return out}
+function renderExport(){
+  const ps=perioden();if(!expPeriode)expPeriode=ps[1].id;
+  $("#meerBody").innerHTML=`
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:10px">
+      <div class="sub">Maakt één zip-bestand met een Excel-overzicht (omzet per beurt, kosten, btw en banktransacties) en alle bonnen. Dat kun je mailen of via WhatsApp sturen naar je boekhouder.</div>
+      <label class="sub" for="expP">Periode</label><select id="expP" class="search">${ps.map(p=>`<option value="${p.id}" ${p.id===expPeriode?"selected":""}>${p.label}</option>`).join("")}</select>
+      <div><button class="btn" type="button" id="expGo">📦 Maak exportbestand</button></div>
+      <div id="expRes"></div>
+    </div>`;
+  $("#expP").onchange=e=>{expPeriode=e.target.value};
+  $("#expGo").onclick=()=>maakExport(ps.find(p=>p.id===$("#expP").value));
+}
+async function maakExport(p){
+  const res=$("#expRes"),btn=$("#expGo");btn.disabled=true;res.innerHTML=`<div class="sub">Bezig met verzamelen…</div>`;
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js");
+    const I=S.inst||{},kor=!!I.kor,t=+I.btw_tarief||21,incl=I.prijzen_incl_btw!==false;
+    const b=await fetchAll(()=>sb.from("beurten").select("*").eq("status","gedaan").gte("datum",p.van).lte("datum",p.tot).order("datum").order("id"));if(b.error)throw b.error;
+    const kosten=await laadKosten(p.van,p.tot);
+    const bk=await fetchAll(()=>sb.from("banktransacties").select("*").gte("datum",p.van).lte("datum",p.tot).order("datum").order("id"));if(bk.error)throw bk.error;
+    const ex=v=>kor?(+v||0):(incl?r2((+v||0)/(1+t/100)):(+v||0));
+    const omzet=(b.data||[]).map(x=>{const k=S.kById[x.klant_id]||{};const e=ex(x.bedrag);return{"Datum":x.datum,"Klant":k.naam||"","Woonplaats":k.woonplaats||"","Zakelijk":k.zakelijk?"ja":"","Factuurnr":x.factuur_nr||"","Bedrag incl.":+x.bedrag,"Omzet excl.":e,"Btw":kor?0:r2((+x.bedrag)-e),"Betaald":x.betaald?"ja":"nee","Betaalwijze":x.betaalwijze||"","Betaald op":x.betaald_op||""}});
+    const zip=new JSZip();const bonMap={};let nb=0;
+    for(const k of kosten){if(!k.bon_pad)continue;try{const u=await signedUrl(k.bon_pad);if(!u)continue;const r=await fetch(u);const blob=await r.blob();const extn=k.bon_pad.split(".").pop();const naam=`bonnen/${k.datum}_${(k.omschrijving||k.categorie).replace(/[^\w\- ]+/g,"").slice(0,40).trim()||"bon"}_${++nb}.${extn}`;zip.file(naam,blob);bonMap[k.id]=naam}catch(e){}}
+    const kost=kosten.slice().sort((a,c)=>a.datum.localeCompare(c.datum)).map(k=>({"Datum":k.datum,"Omschrijving":k.omschrijving,"Categorie":k.categorie,"Bedrag incl.":+k.bedrag_incl,"Btw %":+k.btw_tarief,"Btw":+k.btw_bedrag,"Excl.":r2(k.bedrag_incl-k.btw_bedrag),"Investering":k.investering?`ja, ${k.afschrijf_jaren} jaar`:"","Bon":bonMap[k.id]||"ontbreekt"}));
+    const bank=(bk.data||[]).map(x=>({"Datum":x.datum,"Bedrag":+x.bedrag,"Tegenpartij":x.tegenpartij,"Tegenrekening":x.tegenrekening,"Omschrijving":x.omschrijving,"Verwerkt als":{open:"nog open",betaling:"betaling klant",kosten:"kosten",prive:"privé",genegeerd:"genegeerd"}[x.status]}));
+    const sOmzet=omzet.reduce((a,x)=>({inc:a.inc+x["Bedrag incl."],ex:a.ex+x["Omzet excl."],btw:a.btw+x["Btw"]}),{inc:0,ex:0,btw:0});
+    const sK=kost.reduce((a,x)=>({inc:a.inc+x["Bedrag incl."],btw:a.btw+x["Btw"]}),{inc:0,btw:0});
+    const samen=[{"Onderdeel":"Bedrijf","Waarde":I.bedrijfsnaam||""},{"Onderdeel":"KvK","Waarde":I.kvk||""},{"Onderdeel":"Btw-nummer","Waarde":I.btw_nummer||""},{"Onderdeel":"Periode","Waarde":`${p.label} (${p.van} t/m ${p.tot})`},{"Onderdeel":"KOR","Waarde":kor?"ja":"nee"},
+      {"Onderdeel":"Aantal beurten","Waarde":omzet.length},{"Onderdeel":"Omzet incl. btw","Waarde":r2(sOmzet.inc)},{"Onderdeel":"Omzet excl. btw (1a)","Waarde":r2(sOmzet.ex)},{"Onderdeel":"Btw over omzet (1a)","Waarde":r2(sOmzet.btw)},
+      {"Onderdeel":"Kosten incl. btw","Waarde":r2(sK.inc)},{"Onderdeel":"Voorbelasting (5b)","Waarde":kor?0:r2(sK.btw)},{"Onderdeel":"Btw te betalen","Waarde":kor?0:r2(sOmzet.btw-sK.btw)},
+      {"Onderdeel":"Bonnen in dit bestand","Waarde":nb},{"Onderdeel":"Kosten zonder bon","Waarde":kost.filter(x=>x.Bon==="ontbreekt").length},{"Onderdeel":"Banktransacties nog niet verwerkt","Waarde":bank.filter(x=>x["Verwerkt als"]==="nog open").length}];
+    const wb=XLSX.utils.book_new();const add=(rows,naam,breed)=>{const ws=XLSX.utils.json_to_sheet(rows.length?rows:[{"":"geen gegevens"}]);if(breed)ws["!cols"]=breed.map(w=>({wch:w}));XLSX.utils.book_append_sheet(wb,ws,naam)};
+    add(samen,"Samenvatting",[34,40]);add(omzet,"Omzet",[11,24,14,9,12,12,12,10,8,12,11]);add(kost,"Kosten",[11,30,28,12,7,10,10,14,40]);add(bank,"Bank",[11,11,28,22,50,16]);
+    zip.file(`Zijlstra ${p.label} overzicht.xlsx`,XLSX.write(wb,{bookType:"xlsx",type:"array"}));
+    const blob=await zip.generateAsync({type:"blob"});const naam=`Zijlstra Schoonmaak ${p.label}.zip`;
+    const file=new File([blob],naam,{type:"application/zip"});const url=URL.createObjectURL(blob);
+    const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+    res.innerHTML=`<div class="okmsg">Klaar: ${omzet.length} beurten, ${kost.length} kosten, ${nb} bonnen, ${bank.length} banktransacties.</div>
+      ${kost.some(x=>x.Bon==="ontbreekt")?`<div class="sub">${kost.filter(x=>x.Bon==="ontbreekt").length} kosten hebben nog geen bon.</div>`:""}
+      <div class="row-acts">${canShare?`<button class="btn" type="button" id="expShare">Delen (mail, WhatsApp…)</button>`:""}<a class="btn ghost" href="${url}" download="${esc(naam)}">Downloaden</a></div>`;
+    const sh=$("#expShare");if(sh)sh.onclick=async()=>{try{await navigator.share({files:[file],title:naam})}catch(e){}};
+  }catch(e){res.innerHTML=`<div class="err">Export mislukt: ${esc(e.message||String(e))}</div>`}
+  finally{btn.disabled=false}
 }
 
 let btwJaar=new Date().getFullYear(),btwStelsel="factuur";
