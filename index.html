@@ -1334,13 +1334,15 @@ async function maakFactuur(klantId,beurtIds){
 }
 
 /* ---------- Meer ---------- */
-const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
 function renderMeer(){
   $("#meerBack").hidden=!meerMode;
   const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
   if(!meerMode){$("#meerBody").innerHTML=MEER.map(([k,ic,t,d])=>`<button class="menu-card" type="button" data-meer="${k}"><span class="ic">${ic}</span><span><div class="t">${t}</div><div class="sub">${d}</div></span></button>`).join("");return}
   if(meerMode==="omzet")return renderOmzet();
   if(meerMode==="btw")return renderBtw();
+  if(meerMode==="kosten")return renderKosten();
+  if(meerMode==="ib")return renderIB();
   if(meerMode==="agenda")return renderAgenda($("#meerBody"));
   if(meerMode==="bedrijf")return renderBedrijf();
   if(meerMode==="medewerkers")return renderMws();
@@ -1377,6 +1379,152 @@ function renderOmzet(){
     <div class="sub">Bedragen zijn wat je per beurt hebt ingevoerd. Het overzicht toont de afgelopen 13 maanden.</div>`;
   $("#oJaar").onchange=e=>{omzetJaar=+e.target.value;renderOmzet()};
 }
+/* ---------- kosten en bonnen ---------- */
+const KOST_CAT=["Schoonmaakmiddelen en materiaal","Gereedschap en ladders","Brandstof en auto","Telefoon en internet","Verzekeringen","Werkkleding","Reclame en website","Overig"];
+const IB2026={zelfstandig:1200,starters:2123,mkb:12.7,uren:1225}; // bedragen 2026
+let kostJaar=new Date().getFullYear();
+const r2=n=>Math.round((+n||0)*100)/100;
+function kostBasis(k,kor){return kor?r2(k.bedrag_incl):r2(k.bedrag_incl-k.btw_bedrag)}
+// afschrijving van een investering in jaar Y (lineair, naar rato vanaf de aankoopmaand)
+function afschrijving(k,Y,kor){
+  const basis=kostBasis(k,kor)-(+k.restwaarde||0);if(basis<=0)return 0;
+  const jaren=+k.afschrijf_jaren||5,perMaand=basis/(jaren*12);
+  const y0=+k.datum.slice(0,4),m0=+k.datum.slice(5,7);
+  const startMaand=(y0*12+m0-1),eindMaand=startMaand+jaren*12; // exclusief
+  const van=Math.max(startMaand,Y*12),tot=Math.min(eindMaand,Y*12+12);
+  return tot>van?r2(perMaand*(tot-van)):0;
+}
+async function laadKosten(van,tot){
+  const {data,error}=await fetchAll(()=>sb.from("kosten").select("*").gte("datum",van).lte("datum",tot).order("datum",{ascending:false}).order("id"));
+  if(error)throw error;return data||[];
+}
+async function renderKosten(){
+  const Y=kostJaar,box=$("#meerBody");box.innerHTML=`<div class="empty">Kosten laden…</div>`;
+  let l;try{l=await laadKosten(Y+"-01-01",Y+"-12-31")}catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;return}
+  const kor=!!S.inst.kor,yrs=[new Date().getFullYear(),new Date().getFullYear()-1];
+  const tot=l.reduce((a,k)=>({inc:a.inc+(+k.bedrag_incl||0),btw:a.btw+(+k.btw_bedrag||0)}),{inc:0,btw:0});
+  const perMaand={};l.forEach(k=>{const m=k.datum.slice(0,7);(perMaand[m]=perMaand[m]||[]).push(k)});
+  box.innerHTML=`
+    <div class="filters"><label class="sub" for="kJaar">Jaar</label><select id="kJaar">${yrs.map(y=>`<option ${y===Y?"selected":""}>${y}</option>`).join("")}</select><button class="btn small" type="button" id="kostNieuw">+ Kosten</button></div>
+    <div class="summary" style="margin:0;grid-template-columns:repeat(2,1fr)">
+      <div class="stat"><div class="k">Kosten ${Y}</div><div class="v">${euro(tot.inc)}</div><div class="s">${l.length} bonnen, incl. btw</div></div>
+      <div class="stat"><div class="k">${kor?"Btw (KOR: niet terug)":"Btw terug te vragen"}</div><div class="v">${euro(kor?0:tot.btw)}</div><div class="s">${kor?"met KOR vraag je geen btw terug":"rubriek 5b"}</div></div>
+    </div>
+    ${l.length?Object.entries(perMaand).map(([m,ks])=>{const [y,mm]=m.split("-");return `<div class="group-h"><span>${MNL[+mm-1]} ${y}</span><span>${euro(ks.reduce((a,k)=>a+(+k.bedrag_incl||0),0))}</span></div>`+ks.map(k=>`<button class="kl" type="button" data-kost="${k.id}"><div class="main"><div class="name">${esc(k.omschrijving||k.categorie)}${k.investering?' <span class="pill p-plain">investering</span>':""}${k.bon_pad?" 📎":""}</div><div class="sub">${nice(k.datum)} · ${esc(k.categorie)}${k.btw_tarief?` · btw ${String(k.btw_tarief).replace(".0","")}% ${euro(k.btw_bedrag)}`:" · geen btw"}</div></div><div class="meta"><strong>${euro(k.bedrag_incl)}</strong></div></button>`).join("")}).join(""):`<div class="empty">Nog geen kosten in ${Y}. Tik op <strong>+ Kosten</strong> en maak een foto van de bon.</div>`}
+    <div class="sub">Bewaar je bonnen 7 jaar; met een foto in de app heb je ze altijd bij de hand.</div>`;
+  $("#kJaar").onchange=e=>{kostJaar=+e.target.value;renderKosten()};
+  $("#kostNieuw").onclick=()=>kostForm(null);
+  box.querySelectorAll("[data-kost]").forEach(b=>b.onclick=()=>kostForm(l.find(k=>k.id===b.dataset.kost)));
+}
+function kostForm(k){
+  const nieuw=!k;k=k||{datum:today(),categorie:KOST_CAT[0],btw_tarief:21,afschrijf_jaren:5,restwaarde:0};
+  let bon=k.bon_pad||"",bonBlob=null;
+  sheet(nieuw?"Nieuwe kosten":"Kosten wijzigen",`
+    <label>Datum<input id="k-dat" name="datum" type="date" required value="${esc(k.datum)}"></label>
+    <label>Categorie<select id="k-cat" name="categorie">${KOST_CAT.map(c=>`<option ${k.categorie===c?"selected":""}>${c}</option>`).join("")}</select></label>
+    <label class="full">Omschrijving<input id="k-oms" name="omschrijving" value="${esc(k.omschrijving)}" placeholder="Bijv. 10 liter zeep, Gamma"></label>
+    <label>Bedrag incl. btw (€)<input id="k-bed" name="bedrag_incl" type="number" inputmode="decimal" step="0.01" min="0" required value="${esc(k.bedrag_incl??"")}"></label>
+    <label>Btw-tarief<select id="k-tar" name="btw_tarief">${[21,9,0].map(t=>`<option value="${t}" ${+k.btw_tarief===t?"selected":""}>${t?t+"%":"geen btw"}</option>`).join("")}</select></label>
+    <label>Btw-bedrag (€)<input id="k-btw" name="btw_bedrag" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(k.btw_bedrag??"")}"></label>
+    <div class="sub" style="align-self:end">Wordt uitgerekend; pas aan als de bon iets anders zegt.</div>
+    <label class="full chk"><input id="k-inv" type="checkbox" name="investering" ${k.investering?"checked":""}> Investering (iets dat meerdere jaren meegaat en meer dan € 450 kost, zoals een ladder of bus)</label>
+    <div class="full" id="k-invbox" ${k.investering?"":"hidden"}><div class="filters">
+      <label class="sub">Afschrijven over<select id="k-jr" name="afschrijf_jaren">${[3,4,5,6,7,8,10].map(n=>`<option value="${n}" ${+k.afschrijf_jaren===n?"selected":""}>${n} jaar</option>`).join("")}</select></label>
+      <label class="sub">Restwaarde (€)<input id="k-rest" name="restwaarde" type="number" step="1" min="0" value="${esc(k.restwaarde??0)}" style="width:110px"></label></div>
+      <div class="sub">Een investering trek je niet in één keer af maar verdeeld over de jaren (afschrijving). De btw vraag je wel meteen helemaal terug.</div></div>
+    <div class="full"><div class="sub" style="margin-bottom:6px">Bon</div><div id="k-bonbox" class="sub">${bon?"Bon laden…":"Nog geen bon."}</div>
+      <div class="row-acts"><label class="btn ghost small" for="k-bonin" style="cursor:pointer">📷 ${bon?"Andere bon":"Foto van bon"}</label><input id="k-bonin" type="file" accept="image/*" hidden></div></div>
+  `,{
+    onSave:async fd=>{
+      const inc=r2(String(fd.bedrag_incl).replace(",","."));if(!(inc>0)){toast("Vul het bedrag in");return false}
+      const tar=+fd.btw_tarief;let btw=fd.btw_bedrag===""?r2(inc-inc/(1+tar/100)):r2(String(fd.btw_bedrag).replace(",","."));
+      if(tar===0)btw=0;if(btw>inc){toast("Het btw-bedrag kan niet hoger zijn dan het totaal");return false}
+      if(bonBlob){const p=`bonnen/${(fd.datum||today()).slice(0,4)}/${Date.now()}.jpg`;const {error}=await sb.storage.from("fotos").upload(p,bonBlob,{contentType:"image/jpeg"});if(error){toast("Bon uploaden mislukt: "+error.message);return false}if(k.bon_pad)sb.storage.from("fotos").remove([k.bon_pad]).then(()=>{});bon=p}
+      const row={datum:fd.datum,categorie:fd.categorie,omschrijving:(fd.omschrijving||"").trim(),bedrag_incl:inc,btw_tarief:tar,btw_bedrag:btw,investering:!!fd.investering,afschrijf_jaren:+fd.afschrijf_jaren||5,restwaarde:r2(fd.restwaarde||0),bon_pad:bon};
+      const {error}=nieuw?await sb.from("kosten").insert(row):await sb.from("kosten").update(row).eq("id",k.id);
+      if(error){toast("Opslaan mislukt: "+error.message);return false}
+      toast(nieuw?"Kosten toegevoegd":"Kosten opgeslagen");kostJaar=+row.datum.slice(0,4);renderKosten();return true;
+    },
+    onDelete:nieuw?null:async()=>{const {error}=await sb.from("kosten").delete().eq("id",k.id);if(error){toast(error.message);return}if(k.bon_pad)sb.storage.from("fotos").remove([k.bon_pad]).then(()=>{});toast("Verwijderd");renderKosten()},
+    extra:()=>{
+      let btwZelf=!nieuw;
+      const calc=()=>{if(btwZelf)return;const inc=+String($("#k-bed").value).replace(",",".")||0,t=+$("#k-tar").value;$("#k-btw").value=inc?(t?r2(inc-inc/(1+t/100)):0).toFixed(2):"";
+        const ex=inc-(+$("#k-btw").value||0);if(ex>450&&$("#k-cat").value==="Gereedschap en ladders"&&!$("#k-inv").checked){$("#k-inv").checked=true;$("#k-invbox").hidden=false}};
+      $("#k-bed").addEventListener("input",calc);$("#k-tar").addEventListener("change",()=>{btwZelf=false;calc()});$("#k-cat").addEventListener("change",calc);
+      $("#k-btw").addEventListener("input",()=>{btwZelf=true});
+      $("#k-inv").onchange=e=>{$("#k-invbox").hidden=!e.target.checked};
+      if(bon)signedUrl(bon).then(u=>{const b=$("#k-bonbox");if(b)b.innerHTML=u?`<img class="photo" src="${esc(u)}" alt="Bon" style="max-height:260px">`:"Bon kon niet geladen worden."});
+      $("#k-bonin").onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;try{bonBlob=await compressImage(f,1600,.85);$("#k-bonbox").innerHTML=`<img class="photo" src="${URL.createObjectURL(bonBlob)}" alt="Bon" style="max-height:260px"><div class="sub">Wordt opgeslagen bij Opslaan.</div>`}catch(x){toast(x.message)}};
+    }
+  });
+}
+
+/* ---------- inkomstenbelasting: jaaroverzicht ---------- */
+let ibJaar=new Date().getFullYear()-(new Date().getMonth()<3?1:0);
+async function renderIB(){
+  const Y=ibJaar,I=S.inst||{},kor=!!I.kor,box=$("#meerBody");box.innerHTML=`<div class="empty">Jaaroverzicht ${Y} maken…</div>`;
+  let beurten,kosten,inv;
+  try{
+    const b=await fetchAll(()=>sb.from("beurten").select("id,datum,bedrag,status").eq("status","gedaan").gte("datum",Y+"-01-01").lte("datum",Y+"-12-31").order("id"));if(b.error)throw b.error;beurten=b.data||[];
+    kosten=await laadKosten(Y+"-01-01",Y+"-12-31");
+    inv=(await laadKosten((Y-20)+"-01-01",Y+"-12-31")).filter(k=>k.investering);
+  }catch(e){box.innerHTML=`<div class="empty">${esc(e.message)}</div>`;return}
+  const t=+I.btw_tarief||21,incl=I.prijzen_incl_btw!==false;
+  const ex=v=>kor?(+v||0):(incl?r2((+v||0)/(1+t/100)):(+v||0)); // per beurt afronden, net als het btw-overzicht
+  const omzet=r2(beurten.reduce((a,b)=>a+ex(b.bedrag),0));
+  const perCat={};kosten.filter(k=>!k.investering).forEach(k=>{perCat[k.categorie]=(perCat[k.categorie]||0)+kostBasis(k,kor)});
+  const kostTot=r2(Object.values(perCat).reduce((a,v)=>a+v,0));
+  const afs=inv.map(k=>({k,v:afschrijving(k,Y,kor)})).filter(x=>x.v>0);const afsTot=r2(afs.reduce((a,x)=>a+x.v,0));
+  const winst=r2(omzet-kostTot-afsTot);
+  const uren=I.urencriterium!==false,start=!!I.startersaftrek;
+  let za=uren?IB2026.zelfstandig+(start?IB2026.starters:0):0;
+  const zaToegepast=start?za:Math.min(za,Math.max(0,winst)); // zelfstandigenaftrek max. de winst (behalve startersaftrek)
+  const naOA=r2(winst-zaToegepast);
+  const mkb=naOA>0?r2(naOA*IB2026.mkb/100):0;
+  const belastbaar=r2(naOA-mkb);
+  const yrs=[new Date().getFullYear(),new Date().getFullYear()-1];
+  const regel=(a,b,cls="")=>`<tr class="${cls}"><td>${a}</td><td class="r">${b}</td></tr>`;
+  box.innerHTML=`
+    <div class="filters"><label class="sub" for="ibJ">Jaar</label><select id="ibJ">${yrs.map(y=>`<option ${y===Y?"selected":""}>${y}</option>`).join("")}</select></div>
+    <div class="summary" style="margin:0;grid-template-columns:repeat(2,1fr)">
+      <div class="stat"><div class="k">Winst ${Y}</div><div class="v">${euro(winst)}</div><div class="s">omzet min kosten</div></div>
+      <div class="stat"><div class="k">Belastbare winst</div><div class="v">${euro(Math.max(0,belastbaar))}</div><div class="s">na aftrek en vrijstelling</div></div>
+    </div>
+    <div class="section-h">Winst-en-verliesrekening</div>
+    <div class="scrollx"><table class="tbl">
+      ${regel(`Omzet ${kor?"(KOR, zonder btw)":"excl. btw"} · ${beurten.length} beurten`,euro(omzet))}
+      ${Object.entries(perCat).sort((a,b)=>b[1]-a[1]).map(([c,v])=>regel("− "+esc(c),euro(r2(v)))).join("")||regel("− Kosten","€ 0,00")}
+      ${afs.map(x=>regel("− Afschrijving "+esc(x.k.omschrijving||x.k.categorie)+` <span class="sub">(${x.k.datum.slice(0,4)}, ${x.k.afschrijf_jaren} jaar)</span>`,euro(x.v))).join("")}
+      ${regel("<strong>Winst uit onderneming</strong>","<strong>"+euro(winst)+"</strong>","tot")}
+    </table></div>
+    <div class="section-h">Ondernemersaftrek en vrijstelling</div>
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:6px">
+      <label class="chk"><input type="checkbox" id="ib-uren" ${uren?"checked":""}> Ik werk minstens ${IB2026.uren.toLocaleString("nl-NL")} uur per jaar in mijn bedrijf (urencriterium)</label>
+      <label class="chk"><input type="checkbox" id="ib-start" ${start?"checked":""}> Ik heb recht op startersaftrek (max. 3 keer in de eerste 5 jaar)</label>
+    </div>
+    <div class="scrollx"><table class="tbl">
+      ${regel("Winst",euro(winst))}
+      ${uren?regel("− Zelfstandigenaftrek"+(zaToegepast<IB2026.zelfstandig&&!start?' <span class="sub">(niet meer dan je winst)</span>':""),euro(Math.min(zaToegepast,IB2026.zelfstandig)))+(start?regel("− Startersaftrek",euro(IB2026.starters)):""):regel('− Ondernemersaftrek <span class="sub">(alleen met urencriterium)</span>',"€ 0,00")}
+      ${regel(`− Mkb-winstvrijstelling ${String(IB2026.mkb).replace(".",",")}%`,euro(mkb))}
+      ${regel("<strong>Belastbare winst</strong>","<strong>"+euro(belastbaar)+"</strong>","tot")}
+    </table></div>
+    <div class="section-h">Zo vul je het in</div>
+    <div class="panel" style="flex-direction:column;align-items:stretch;gap:6px">
+      <div class="sub">1. Log in op <strong>Mijn Belastingdienst</strong> met DigiD en open de aangifte inkomstenbelasting ${Y} (vanaf 1 maart ${Y+1}).</div>
+      <div class="sub">2. Kies bij inkomsten <strong>Winst uit onderneming</strong>. Vul bij de winst-en-verliesrekening de omzet, de kosten en de afschrijvingen van hierboven in.</div>
+      <div class="sub">3. Beantwoord de vragen over het urencriterium; de aftrekposten en de mkb-winstvrijstelling rekent het programma dan zelf uit. Vergelijk die met dit overzicht.</div>
+      <div class="sub">4. Heb je investeringen, dan vraagt de aangifte ook om een balans (wat je bedrijf bezit). Dit overzicht maakt geen balans.</div>
+      <div><button class="btn ghost small" type="button" id="ibCopy">📋 Kopieer overzicht</button></div>
+    </div>
+    <div class="sub">De bedragen voor aftrek en vrijstelling zijn die van 2026 (zelfstandigenaftrek ${euro(IB2026.zelfstandig)}, startersaftrek ${euro(IB2026.starters)}, mkb-winstvrijstelling ${String(IB2026.mkb).replace(".",",")}%). Hoeveel belasting je uiteindelijk betaalt, hangt af van je andere inkomen, je partner en heffingskortingen; dat rekent de Belastingdienst uit. Niet meegenomen: privégebruik van een zakelijke auto, kleinschaligheidsinvesteringsaftrek en de balans. Ik ben geen belastingadviseur; laat het bij twijfel nakijken.</div>`;
+  $("#ibJ").onchange=e=>{ibJaar=+e.target.value;renderIB()};
+  const zet=async(veld,val)=>{S.inst[veld]=val;await sb.from("instellingen").update({[veld]:val}).eq("id",1);renderIB()};
+  $("#ib-uren").onchange=e=>zet("urencriterium",e.target.checked);
+  $("#ib-start").onchange=e=>zet("startersaftrek",e.target.checked);
+  $("#ibCopy").onclick=async()=>{const txt=[`Jaaroverzicht ${Y} – ${I.bedrijfsnaam||""}`,`Omzet ${kor?"(KOR)":"excl. btw"}: ${euro(omzet)} (${beurten.length} beurten)`,...Object.entries(perCat).map(([c,v])=>`Kosten ${c}: ${euro(r2(v))}`),...afs.map(x=>`Afschrijving ${x.k.omschrijving||x.k.categorie}: ${euro(x.v)}`),`Winst uit onderneming: ${euro(winst)}`,`Urencriterium: ${uren?"ja":"nee"}${start?", startersaftrek":""}`,`Belastbare winst (indicatie): ${euro(belastbaar)}`].join("\n");
+    try{await navigator.clipboard.writeText(txt);toast("Gekopieerd")}catch(e){sheet("Jaaroverzicht",`<label class="full">Tekst<textarea rows="10" readonly>${esc(txt)}</textarea></label>`,{})}};
+}
+
 let btwJaar=new Date().getFullYear(),btwStelsel="factuur";
 async function renderBtw(){
   const I=S.inst||{};const Y=btwJaar;
@@ -1385,10 +1533,11 @@ async function renderBtw(){
   const {data,error}=await fetchAll(()=>sb.from("beurten").select("id,datum,bedrag,status,betaald,betaald_op,betaalwijze").eq("status","gedaan").gte("datum",(Y-1)+"-10-01").lte("datum",(Y+1)+"-03-31").order("id"));
   if(error){$("#meerBody").innerHTML=`<div class="empty">${esc(error.message)}</div>`;return}
   const rows=(data||[]).map(b=>({...b,peil:btwStelsel==="kas"?(b.betaald?(b.betaald_op||b.datum):null):b.datum})).filter(b=>b.peil&&b.peil.startsWith(String(Y)));
+  let kostL=[];try{kostL=await laadKosten(Y+"-01-01",Y+"-12-31")}catch(e){}
   const t=+I.btw_tarief||21,incl=I.prijzen_incl_btw!==false,kor=!!I.kor;
   const split=bedrag=>{const v=+bedrag||0;if(kor)return{ex:v,btw:0,inc:v};if(incl){const ex=Math.round(v/(1+t/100)*100)/100;return{ex,btw:Math.round((v-ex)*100)/100,inc:v}}const btw=Math.round(v*t)/100;return{ex:v,btw,inc:Math.round((v+btw)*100)/100}};
-  const Q=[1,2,3,4].map(q=>{const l=rows.filter(b=>Math.floor((+b.peil.slice(5,7)-1)/3)+1===q);let ex=0,btw=0,inc=0;const per={};l.forEach(b=>{const x=split(b.bedrag);ex+=x.ex;btw+=x.btw;inc+=x.inc;const w=b.betaalwijze||(b.betaald?"onbekend":"nog open");per[w]=(per[w]||0)+x.inc});return{q,n:l.length,ex:Math.round(ex*100)/100,btw:Math.round(btw*100)/100,inc:Math.round(inc*100)/100,per}});
-  const jaar=Q.reduce((a,x)=>({ex:a.ex+x.ex,btw:a.btw+x.btw,inc:a.inc+x.inc,n:a.n+x.n}),{ex:0,btw:0,inc:0,n:0});
+  const Q=[1,2,3,4].map(q=>{const l=rows.filter(b=>Math.floor((+b.peil.slice(5,7)-1)/3)+1===q);let ex=0,btw=0,inc=0;const per={};l.forEach(b=>{const x=split(b.bedrag);ex+=x.ex;btw+=x.btw;inc+=x.inc;const w=b.betaalwijze||(b.betaald?"onbekend":"nog open");per[w]=(per[w]||0)+x.inc});const vb=kor?0:r2(kostL.filter(k=>Math.floor((+k.datum.slice(5,7)-1)/3)+1===q).reduce((a,k)=>a+(+k.btw_bedrag||0),0));const b2=Math.round(btw*100)/100;return{q,n:l.length,ex:Math.round(ex*100)/100,btw:b2,inc:Math.round(inc*100)/100,per,vb,saldo:r2(b2-vb)}});
+  const jaar=Q.reduce((a,x)=>({ex:a.ex+x.ex,btw:a.btw+x.btw,inc:a.inc+x.inc,n:a.n+x.n,vb:a.vb+x.vb,saldo:a.saldo+x.saldo}),{ex:0,btw:0,inc:0,n:0,vb:0,saldo:0});
   const qName=q=>["jan–mrt","apr–jun","jul–sep","okt–dec"][q-1];
   const deadline=q=>["30 april","31 juli","31 oktober","31 januari "+(Y+1)][q-1];
   const yrs=[new Date().getFullYear(),new Date().getFullYear()-1];
@@ -1401,19 +1550,21 @@ async function renderBtw(){
     ${kor?`<div class="panel">Je gebruikt de <strong>KOR</strong>: je rekent geen btw en doet geen btw-aangifte. Let wel op de grens van € 20.000 omzet per jaar. ${Y}: <strong>${euro(jaar.inc)}</strong>.</div>`:
       (jaar.inc<20000?`<div class="panel">Je omzet in ${Y} is tot nu toe ${euro(jaar.inc)}. Blijf je onder de € 20.000 per jaar, dan kun je misschien de <strong>KOR</strong> gebruiken (geen btw). Je kunt je daarvoor aanmelden bij de Belastingdienst; overleg dit bij twijfel met je boekhouder.</div>`:"")}
     <div class="scrollx"><table class="tbl">
-      <tr><th>Kwartaal</th><th class="r">Beurten</th><th class="r">Omzet excl.</th>${kor?"":`<th class="r">Btw ${String(t).replace(".",",")}%</th>`}<th class="r">Totaal</th></tr>
-      ${Q.map(x=>`<tr><td><strong>Q${x.q}</strong> <span class="sub">${qName(x.q)}</span></td><td class="r">${x.n}</td><td class="r">${euro(x.ex)}</td>${kor?"":`<td class="r"><strong>${euro(x.btw)}</strong></td>`}<td class="r">${euro(x.inc)}</td></tr>`).join("")}
-      <tr><td><strong>Heel ${Y}</strong></td><td class="r">${jaar.n}</td><td class="r">${euro(jaar.ex)}</td>${kor?"":`<td class="r"><strong>${euro(jaar.btw)}</strong></td>`}<td class="r">${euro(jaar.inc)}</td></tr>
+      <tr><th>Kwartaal</th><th class="r">Beurten</th><th class="r">Omzet excl.</th>${kor?"":`<th class="r">Btw ${String(t).replace(".",",")}%</th><th class="r">Btw kosten</th><th class="r">Te betalen</th>`}<th class="r">Omzet incl.</th></tr>
+      ${Q.map(x=>`<tr><td><strong>Q${x.q}</strong> <span class="sub">${qName(x.q)}</span></td><td class="r">${x.n}</td><td class="r">${euro(x.ex)}</td>${kor?"":`<td class="r">${euro(x.btw)}</td><td class="r">${euro(x.vb)}</td><td class="r"><strong>${euro(x.saldo)}</strong></td>`}<td class="r">${euro(x.inc)}</td></tr>`).join("")}
+      <tr><td><strong>Heel ${Y}</strong></td><td class="r">${jaar.n}</td><td class="r">${euro(jaar.ex)}</td>${kor?"":`<td class="r">${euro(jaar.btw)}</td><td class="r">${euro(r2(jaar.vb))}</td><td class="r"><strong>${euro(r2(jaar.saldo))}</strong></td>`}<td class="r">${euro(jaar.inc)}</td></tr>
     </table></div>
     ${kor?"":`<div class="section-h">Invullen bij je aangifte</div>
-    ${Q.filter(x=>x.n).map(x=>`<div class="panel" style="flex-direction:column;align-items:stretch;gap:4px"><div><strong>Q${x.q} ${Y}</strong> <span class="sub">· uiterlijk ${deadline(x.q)} indienen en betalen</span></div>
+    ${Q.filter(x=>x.n||x.vb).map(x=>`<div class="panel" style="flex-direction:column;align-items:stretch;gap:4px"><div><strong>Q${x.q} ${Y}</strong> <span class="sub">· uiterlijk ${deadline(x.q)} indienen en betalen</span></div>
       <div class="sub">Rubriek 1a (leveringen/diensten belast met hoog tarief): omzet <strong>${euro(Math.floor(x.ex))}</strong>, btw <strong>${euro(x.btw)}</strong></div>
+      <div class="sub">Rubriek 5b (voorbelasting, btw op je kosten): <strong>${euro(x.vb)}</strong></div>
+      <div class="sub">${x.saldo>=0?"Te betalen":"Terug te krijgen"}: <strong>${euro(Math.abs(x.saldo))}</strong></div>
       <div class="sub">Ontvangen: ${Object.entries(x.per).map(([w,v])=>esc(w)+" "+euro(v)).join(" · ")}</div>
       <div><button class="btn ghost small" type="button" data-btwcopy="${x.q}">📋 Kopieer voor boekhouder</button></div></div>`).join("")||`<div class="sub">Nog geen gewassen beurten in ${Y}.</div>`}
-    <div class="sub">In rubriek 1a vul je de omzet in hele euro's in (naar beneden afgerond). Kosten met btw (zoals materiaal en brandstof) kun je terugvragen in rubriek 5b; die staan niet in deze app. Controleer de bedragen voor je ze indient; ik ben geen belastingadviseur.</div>`}`;
+    <div class="sub">In rubriek 1a vul je de omzet in hele euro's in (naar beneden afgerond). De btw in rubriek 5b komt uit je kosten (Meer → Kosten en bonnen); voer daar elke bon in. Controleer de bedragen voor je ze indient; ik ben geen belastingadviseur.</div>`}`;
   $("#bJaar").onchange=e=>{btwJaar=+e.target.value;renderBtw()};
   $$("[data-st]").forEach(x=>x.onclick=()=>{btwStelsel=x.dataset.st;renderBtw()});
-  $$("[data-btwcopy]").forEach(x=>x.onclick=async()=>{const q=Q[+x.dataset.btwcopy-1];const txt=`Btw Q${q.q} ${Y} (${qName(q.q)}) – ${I.bedrijfsnaam||""}\nAantal beurten: ${q.n}\nOmzet excl. btw: ${euro(q.ex)}\nBtw ${t}%: ${euro(q.btw)}\nOmzet incl. btw: ${euro(q.inc)}\nStelsel: ${btwStelsel==="kas"?"kasstelsel (datum betaling)":"factuurstelsel (datum beurt)"}\nOntvangen per betaalwijze: ${Object.entries(q.per).map(([w,v])=>w+" "+euro(v)).join(", ")}`;try{await navigator.clipboard.writeText(txt);toast("Gekopieerd")}catch(e){sheet("Btw Q"+q.q,`<label class="full">Tekst<textarea rows="8" readonly>${esc(txt)}</textarea></label>`,{})}});
+  $$("[data-btwcopy]").forEach(x=>x.onclick=async()=>{const q=Q[+x.dataset.btwcopy-1];const txt=`Btw Q${q.q} ${Y} (${qName(q.q)}) – ${I.bedrijfsnaam||""}\nAantal beurten: ${q.n}\nOmzet excl. btw: ${euro(q.ex)}\nBtw ${t}%: ${euro(q.btw)}\nOmzet incl. btw: ${euro(q.inc)}\nVoorbelasting (5b): ${euro(q.vb)}\n${q.saldo>=0?"Te betalen":"Terug"}: ${euro(Math.abs(q.saldo))}\nStelsel: ${btwStelsel==="kas"?"kasstelsel (datum betaling)":"factuurstelsel (datum beurt)"}\nOntvangen per betaalwijze: ${Object.entries(q.per).map(([w,v])=>w+" "+euro(v)).join(", ")}`;try{await navigator.clipboard.writeText(txt);toast("Gekopieerd")}catch(e){sheet("Btw Q"+q.q,`<label class="full">Tekst<textarea rows="8" readonly>${esc(txt)}</textarea></label>`,{})}});
 }
 /* ---------- agenda-abonnement ---------- */
 async function renderAgenda(box,opts={}){
