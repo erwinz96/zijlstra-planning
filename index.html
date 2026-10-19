@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#123247">
+<meta name="theme-color" content="#060d12" id="themeColor">
+<script>/* thema vóór het tekenen kiezen: standaard donker */
+(function(){var t="dark";try{t=localStorage.getItem("zs-theme")||"dark"}catch(e){}document.documentElement.setAttribute("data-theme",t);
+var m=document.getElementById("themeColor");if(m)m.content=t==="dark"?"#060d12":"#123247"})();</script>
 <meta name="robots" content="noindex,nofollow">
 <title>Zijlstra Planning</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,14 +20,17 @@
   --ok:#1f8a4c; --ok-bg:#ddf2e5; --warn:#a86500; --warn-bg:#fbeccd; --bad:#b3261e; --bad-bg:#f9dedb;
   --display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
   --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --hdr:#123247; --hdr-ink:#eef3f6; --sel:#123247; --sel-ink:#eef3f6; --ok-btn:#1f8a4c; --shadow:rgba(6,20,28,.18);
   --r:10px; color-scheme:light;
 }
-@media (prefers-color-scheme:dark){:root{
-  --bg:#0c1820; --surface:#13242e; --surface2:#1a303c; --line:#28404d;
-  --ink:#e4eef3; --muted:#93a9b4; --accent:#4fb6d3; --accent-ink:#06202a;
-  --note:#3a2f12; --note-ink:#f6d98c;
-  --ok:#5fd18f; --ok-bg:#163828; --warn:#f0b454; --warn-bg:#3a2c10; --bad:#ff8a80; --bad-bg:#3d1916;
-  color-scheme:dark}}
+/* Donker (standaard): bijna zwart nachtblauw, gele werkstreep als enige felle kleur */
+:root[data-theme="dark"]{
+  --bg:#0a1217; --surface:#121e26; --surface2:#1a2a34; --line:#263a46;
+  --ink:#e7eef2; --muted:#8ea3ae; --accent:#4cb4d2; --accent-ink:#04161d;
+  --note:#33290f; --note-ink:#f4d68a;
+  --ok:#55cd8a; --ok-bg:#11301e; --warn:#f2b35a; --warn-bg:#352812; --bad:#ff8a80; --bad-bg:#3a1714;
+  --hdr:#060d12; --hdr-ink:#e7eef2; --sel:#f2b632; --sel-ink:#1c1400; --ok-btn:#1f8a4c; --shadow:rgba(0,0,0,.5);
+  color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink)}
 body{font-family:var(--body);font-size:15px;line-height:1.45;font-variant-numeric:tabular-nums;padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -36,15 +42,15 @@ a{color:var(--accent)}
 .wrap{max-width:1200px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 
 /* kop */
-header.top{background:#123247;color:#eef3f6;position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top,0px)}
+header.top{background:var(--hdr);color:var(--hdr-ink);position:sticky;top:0;z-index:5;padding-top:env(safe-area-inset-top,0px)}
 header.top .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:10px}
 .brand{display:flex;align-items:center;gap:10px;min-width:0}
 .brand h1{font-family:var(--display);font-weight:700;font-size:21px;letter-spacing:.03em;margin:0;line-height:1;text-transform:uppercase;white-space:nowrap}
 .brand small{display:block;font-size:12px;opacity:.75}
 .hdr-acts{display:flex;gap:8px;align-items:center}
-.stripe{height:6px;background:repeating-linear-gradient(-45deg,#f2b632 0 14px,#123247 14px 28px)}
+.stripe{height:6px;background:repeating-linear-gradient(-45deg,var(--stripe) 0 14px,var(--hdr) 14px 28px)}
 .desk-tabs{display:flex;gap:4px}
-.desk-tabs button{background:none;border:0;color:#eef3f6;opacity:.7;padding:8px 12px;border-radius:8px;font-weight:600}
+.desk-tabs button{background:none;border:0;color:var(--hdr-ink);opacity:.7;padding:8px 12px;border-radius:8px;font-weight:600}
 .desk-tabs button[aria-selected="true"]{opacity:1;background:rgba(255,255,255,.12)}
 @media (max-width:820px){.desk-tabs{display:none}}
 
@@ -54,7 +60,7 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;g
 .btn.small{padding:6px 10px;font-size:13px}
 .btn.yellow{background:var(--stripe);color:var(--stripe-ink)}
 .btn.danger{background:var(--bad-bg);color:var(--bad)}
-.btn.ok{background:var(--ok);color:#fff}
+.btn.ok{background:var(--ok-btn);color:#fff}
 .btn.link{background:none;color:var(--accent);padding:4px 0}
 a.btn{text-decoration:none;display:inline-block}
 .btn.wa{background:#1f9e55;color:#fff}
@@ -79,11 +85,31 @@ a.btn{text-decoration:none;display:inline-block}
 .ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
 .form label.btn{display:inline-flex;flex-direction:row;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);font-weight:600;gap:4px}
 .ac{position:relative}
-.ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(6,20,28,.18);overflow:hidden;text-transform:none;letter-spacing:0}
+.ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px var(--shadow);overflow:hidden;text-transform:none;letter-spacing:0}
 .ac-item{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font-size:15px;font-weight:500;color:var(--ink)}
 .ac-item:last-child{border-bottom:0}
 .ac-item:hover,.ac-item:focus{background:var(--surface2)}
 .ac-empty{padding:10px 12px;font-size:14px;color:var(--muted);font-weight:400}
+:root[data-theme="dark"] header.top{border-bottom:1px solid #121e26}
+:root[data-theme="dark"] .item,:root[data-theme="dark"] .kl,:root[data-theme="dark"] .stat,:root[data-theme="dark"] .col{box-shadow:0 1px 0 rgba(255,255,255,.03) inset}
+:root[data-theme="dark"] .stat:not(.alert) .v{color:#fff}
+:root[data-theme="dark"] .day.today .dd,:root[data-theme="dark"] .dchip.today:not([aria-pressed="true"]) .dd,:root[data-theme="dark"] .col.today .ch .d{color:var(--stripe)}
+:root[data-theme="dark"] .btn.yellow{box-shadow:0 0 0 1px rgba(242,182,50,.35)}
+.themebtn{display:inline-grid;place-items:center;min-width:34px}
+.brand{min-width:0;flex:1 1 auto}
+.brand>div{min-width:0}
+.brand svg{flex:none}
+.brand h1{overflow:hidden;text-overflow:ellipsis}
+.hdr-acts{flex:none}
+@media (max-width:480px){
+  .brand h1{font-size:19px}
+  .brand h1 .hm{display:none}
+  .brand small{font-size:11px}
+  .brand svg{width:26px;height:26px}
+  header.top .wrap{gap:8px}
+  .hdr-acts{gap:6px}
+  .hdr-acts .btn.small{padding:6px 9px}
+}
 .mchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px!important;text-transform:none!important;letter-spacing:0!important;color:var(--ink)!important;font-weight:500!important}
 #cpOpts .chk{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:4px 10px;font-size:13px;text-transform:none;letter-spacing:0;color:var(--ink);font-weight:500}
 .chkrow{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line)}
@@ -97,7 +123,7 @@ a.btn{text-decoration:none;display:inline-block}
 /* login & setup */
 .auth{min-height:100vh;display:grid;place-items:center;padding:24px 16px}
 .auth .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;width:100%;max-width:380px;overflow:hidden}
-.auth .card .hd{background:#123247;color:#eef3f6;padding:18px 20px}
+.auth .card .hd{background:var(--hdr);color:var(--hdr-ink);padding:18px 20px}
 .auth .card .hd h1{font-family:var(--display);font-size:28px;margin:0;text-transform:uppercase;letter-spacing:.03em}
 .auth .card .bd{padding:20px;display:flex;flex-direction:column;gap:12px}
 .err{color:var(--bad);font-size:14px}
@@ -150,7 +176,8 @@ section[data-view]{display:flex;flex-direction:column;gap:12px}
 .dchip .dd{font-family:var(--display);font-size:22px;font-weight:700;line-height:1.1}
 .dchip .dc{font-size:11px;color:var(--muted);min-height:15px}
 .dchip.today .dd{color:var(--accent)}
-.dchip[aria-pressed="true"]{background:#123247;color:#eef3f6;border-color:#123247}
+.dchip[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);border-color:var(--sel)}
+.dchip[aria-pressed="true"] .dd{color:inherit}
 .dchip[aria-pressed="true"] .dn,.dchip[aria-pressed="true"] .dc{color:inherit;opacity:.8}
 .group-h{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:6px 2px 2px;border-bottom:1px dashed var(--line)}
 .list{display:flex;flex-direction:column;gap:8px}
@@ -210,7 +237,7 @@ nav.tabs svg{width:22px;height:22px}
 .hist div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid var(--line);padding:4px 0}
 .paygrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:#123247;color:#eef3f6;padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--hdr);color:var(--hdr-ink);border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
 .loading{position:fixed;top:calc(env(safe-area-inset-top,0px) + 60px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;z-index:7}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
 </style>
@@ -282,7 +309,7 @@ nav.tabs svg{width:22px;height:22px}
   <div class="wrap">
     <div class="brand">
       <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
-      <div><h1>Zijlstra Planning</h1><small id="whoami"></small></div>
+      <div><h1>Zijlstra<span class="hm"> Planning</span></h1><small id="whoami"></small></div>
     </div>
     <div class="desk-tabs" role="tablist">
       <button data-tab="planning" aria-selected="true" type="button">Planning</button>
@@ -293,6 +320,7 @@ nav.tabs svg{width:22px;height:22px}
     </div>
     <div class="hdr-acts">
       <button class="btn yellow small" id="addBtn" type="button">+ Beurt</button>
+      <button class="btn ghost small themebtn" type="button" data-theme-toggle title="Licht of donker" aria-label="Licht of donker"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
       <button class="btn ghost small" type="button" data-logout title="Uitloggen" aria-label="Uitloggen">⎋</button>
     </div>
   </div>
@@ -397,7 +425,7 @@ nav.tabs svg{width:22px;height:22px}
       <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
       <div><h1>Mijn route</h1><small id="crewWho"></small></div>
     </div>
-    <div class="hdr-acts"><button class="btn ghost small" type="button" id="crewAgenda">📅 Agenda</button><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
+    <div class="hdr-acts"><button class="btn ghost small themebtn" type="button" data-theme-toggle aria-label="Licht of donker"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button><button class="btn ghost small" type="button" id="crewAgenda">📅 Agenda</button><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
   </div>
 </header>
 <div class="stripe" aria-hidden="true"></div>
@@ -1498,6 +1526,7 @@ document.addEventListener("click",async e=>{
   const t=e.target.closest("button,[data-edit-beurt],[data-goto]");if(!t)return;
   const d=t.dataset;
   if(d.logout!==undefined){await sb.auth.signOut();return}
+  if(d.themeToggle!==undefined){const n=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("zs-theme",n)}catch(x){}const m=$("#themeColor");if(m)m.content=n==="dark"?"#060d12":"#123247";toast(n==="dark"?"Donker thema":"Licht thema");return}
   if(t.id==="remindBtn"){remindSheet(sel);return}
   if(t.id==="shiftBtn"){shiftSheet(sel);return}
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
