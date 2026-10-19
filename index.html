@@ -84,6 +84,13 @@ a.btn{text-decoration:none;display:inline-block}
 .scrollx{overflow-x:auto;max-width:100%}
 .ondrow{display:grid;grid-template-columns:1fr 90px 34px;gap:6px;align-items:center}
 .form label.btn{display:inline-flex;flex-direction:row;text-transform:none;letter-spacing:0;font-size:13px;color:var(--ink);font-weight:600;gap:4px}
+.woning{display:flex;flex-direction:column;gap:8px}
+.lf{position:relative;width:100%;max-width:360px;aspect-ratio:1;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface2)}
+.lf img{width:100%;height:100%;object-fit:cover;display:block}
+.lf .pin{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:3px solid #fff;background:var(--stripe);box-shadow:0 0 0 2px rgba(0,0,0,.45)}
+.lf .lf-msg{display:none;position:absolute;inset:0;place-items:center;color:var(--muted);font-size:13px;text-align:center;padding:12px}
+.lf.lf-err img,.lf.lf-err .pin{display:none}
+.lf.lf-err .lf-msg{display:grid}
 .ac{position:relative}
 .ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px var(--shadow);overflow:hidden;text-transform:none;letter-spacing:0}
 .ac-item{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font-size:15px;font-weight:500;color:var(--ink)}
@@ -723,6 +730,7 @@ function beurtCard(b,list){
         ${done?`<button class="btn ghost small" type="button" data-paid="${b.id}">${b.betaald?"Betaling ongedaan":"€ Betaald"}</button>${b.betaald?"":waBtn(k,"betaling",{datum:b.datum,bedrag:b.bedrag},"","💬 Betaalherinnering")}`:`<button class="btn ok small" type="button" data-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-move="${b.id}">Verplaatsen</button>${b.datum>=t?waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,b.herinnering_op?"💬 Opnieuw":"💬 Herinnering"):""}`}
         ${done&&k.zakelijk?`<button class="btn ghost small" type="button" data-factuur="${b.id}">📄 Factuur</button>`:""}
         ${k.foto_pad?`<button class="btn ghost small" type="button" data-foto="${b.klant_id}">📷 Foto</button>`:""}
+        ${k.adres?`<button class="btn ghost small" type="button" data-woning="${b.klant_id}">🏠 Woning</button>`:""}
         <button class="btn ghost small" type="button" data-edit-beurt="${b.id}">Wijzig</button>
       </div>
       ${!done&&b.herinnering_op?`<div class="sub" style="margin-top:4px">✓ Geappt op ${nice(String(b.herinnering_op).slice(0,10))}</div>`:""}
@@ -825,10 +833,12 @@ function klantForm(id){
   const s=id?kStatus(k):null;
   let ond=Array.isArray(k.onderdelen)?k.onderdelen.map(o=>({naam:o.naam||"",prijs:o.prijs??""})):[];
   let fm=arr(k.vaste_maanden).length?"maanden":"weken";
+  let punt=id&&k.rd_x!=null?{lat:k.lat,lon:k.lon,rd_x:k.rd_x,rd_y:k.rd_y}:null,adresBijPunt=k.adres||"";
   const ondHtml=()=>ond.map((o,n)=>`<div class="ondrow"><input aria-label="Onderdeel" data-on="${n}" value="${esc(o.naam)}" placeholder="Bijv. voorkant"><input aria-label="Prijs" data-op="${n}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(o.prijs)}" placeholder="€"><button class="iconbtn" type="button" data-ondel="${n}" aria-label="Verwijder onderdeel">×</button></div>`).join("");
   sheet(id?k.naam:"Nieuwe klant",`
     <label class="full">Naam<input id="f-naam" name="naam" required value="${esc(k.naam)}" autocomplete="off"></label>
     <label class="full ac">Adres<input id="f-adres" name="adres" value="${esc(k.adres)}" placeholder="Typ straat + huisnummer, of postcode + huisnummer" autocomplete="off"><div class="ac-list" id="acList" hidden></div></label>
+    <div class="full" id="woningBox">${id&&k.rd_x!=null?woningHtml(k,k.naam):(id?`<div class="sub"><button class="btn ghost small" type="button" id="woningZoek">🏠 Toon woning</button></div>`:"")}</div>
     <label>Postcode<input id="f-pc" name="postcode" value="${esc(k.postcode)}" placeholder="1234 AB"></label>
     <label>Woonplaats<input id="f-plaats" name="woonplaats" list="plaatsl" value="${esc(k.woonplaats)}" required><datalist id="plaatsl">${plaatsen.map(w=>`<option value="${esc(w)}">`).join("")}</datalist></label>
     <label>Telefoon<input id="f-tel" name="telefoon" type="tel" value="${esc(k.telefoon)}" placeholder="06 …"></label>
@@ -871,7 +881,7 @@ function klantForm(id){
       const onderdelen=ond.map(o=>({naam:String(o.naam).trim(),prijs:Number(String(o.prijs).replace(",","."))||0})).filter(o=>o.naam);
       let prijs=Number(String(fd.prijs).replace(",","."))||0;
       if(onderdelen.length)prijs=Math.round(onderdelen.reduce((t,o)=>t+o.prijs,0)*100)/100;
-      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value),notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
+      const row={naam:fd.naam.trim(),adres:fd.adres.trim(),postcode:fd.postcode.trim().toUpperCase(),woonplaats:fd.woonplaats.trim(),telefoon:fd.telefoon.trim(),email:(fd.email||"").trim(),zakelijk:!!fd.zakelijk,tav:(fd.tav||"").trim(),prijs,interval_weken:+fd.interval_weken||6,vaste_maanden:fm==="maanden"?$$("#fVaste input:checked").map(x=>+x.value):[],pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value),...(punt&&$("#f-adres").value.trim()===String(adresBijPunt).trim()?punt:{lat:null,lon:null,rd_x:null,rd_y:null}),notitie:fd.notitie.trim(),actief:!!fd.actief,onderdelen};
       if(id)return (await run(sb.from("klanten").update(row).eq("id",id),"Klant opgeslagen"))?true:false;
       const res=await run(sb.from("klanten").insert(row).select().single(),"Klant toegevoegd");
       if(res&&res.id){setTimeout(()=>klantForm(res.id),50)}
@@ -882,7 +892,9 @@ function klantForm(id){
       $("#noteChips").addEventListener("click",e=>{const c=e.target.closest("[data-chip]");if(!c)return;const ta=$("#f-not");ta.value=(ta.value.trim()?ta.value.trim()+", ":"")+c.dataset.chip.toLowerCase().replace(/^./,x=>x.toUpperCase())});
       const pn=$("#planNext");if(pn)pn.onclick=()=>{$("#sheetRoot").innerHTML="";beurtForm(null,{klant_id:id,datum:k.aan_de_beurt<today()?addDays(today(),1):k.aan_de_beurt})};
       $("#f-zak").onchange=e=>{$("#tavWrap").hidden=!e.target.checked};
-      adresAanvullen($("#f-adres"),$("#acList"),a=>{$("#f-adres").value=a.adres;if(a.postcode)$("#f-pc").value=a.postcode;if(a.woonplaats)$("#f-plaats").value=a.woonplaats});
+      adresAanvullen($("#f-adres"),$("#acList"),a=>{$("#f-adres").value=a.adres;if(a.postcode)$("#f-pc").value=a.postcode;if(a.woonplaats)$("#f-plaats").value=a.woonplaats;
+        if(a.rd_x!=null){punt={lat:a.lat,lon:a.lon,rd_x:a.rd_x,rd_y:a.rd_y};adresBijPunt=a.adres;$("#woningBox").innerHTML=woningHtml(punt,$("#f-naam").value)}});
+      const wz=$("#woningZoek");if(wz)wz.onclick=async()=>{wz.disabled=true;wz.textContent="Zoeken…";const p=await zoekPunt({adres:$("#f-adres").value,postcode:$("#f-pc").value,woonplaats:$("#f-plaats").value});if(p&&p.rd_x!=null){punt=p;adresBijPunt=$("#f-adres").value;$("#woningBox").innerHTML=woningHtml(p,$("#f-naam").value)}else $("#woningBox").innerHTML=`<div class="sub">Adres niet gevonden. Kies het adres uit de lijst die verschijnt als je typt.</div>`};
       $$("[data-fm]").forEach(x=>x.onclick=()=>{fm=x.dataset.fm;$$("[data-fm]").forEach(y=>y.setAttribute("aria-pressed",y===x));$("#fmWeken").hidden=fm!=="weken";$("#fmMaanden").hidden=fm!=="maanden"});
       const setM=(sel,list)=>$$(sel+" input").forEach(i=>i.checked=list.includes(+i.value));
       $("#fWinter").onclick=()=>setM("#fPauze",[12,1,2]);$("#fWinter2").onclick=()=>setM("#fPauze",[11,12,1,2,3]);$("#fNoPauze").onclick=()=>setM("#fPauze",[]);
@@ -1047,6 +1059,28 @@ async function fotoSheet(path,title){
 
 /* ---------- adres aanvullen via PDOK Locatieserver (gratis, overheid) ---------- */
 const PDOK="https://api.pdok.nl/bzk/locatieserver/search/v3_1/";
+// "POINT(x y)" → getallen
+function pt(s){const m=String(s||"").match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);return m?[+m[1],+m[2]]:null}
+function punten(a){const ll=pt(a.centroide_ll),rd=pt(a.centroide_rd);return{lon:ll?ll[0]:null,lat:ll?ll[1]:null,rd_x:rd?rd[0]:null,rd_y:rd?rd[1]:null}}
+// adres opzoeken voor klanten zonder coördinaten (oude klanten, import)
+async function zoekPunt(k){
+  const q=[k.adres,k.postcode,k.woonplaats].filter(Boolean).join(" ");if(!q)return null;
+  try{const r=await fetch(PDOK+"free?rows=1&fq=type:adres&fl=centroide_ll,centroide_rd,weergavenaam&q="+encodeURIComponent(q));const j=await r.json();const a=j.response&&j.response.docs&&j.response.docs[0];return a?punten(a):null}catch(e){return null}
+}
+// luchtfoto (PDOK, gratis) rond het adres, ca. 60 x 60 meter
+function luchtfotoUrl(x,y,m=32,px=480){return "https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=Actueel_orthoHR&STYLES=&CRS=EPSG%3A28992&FORMAT=image%2Fjpeg&WIDTH="+px+"&HEIGHT="+px+"&BBOX="+[x-m,y-m,x+m,y+m].map(v=>v.toFixed(1)).join("%2C")}
+function streetViewUrl(lat,lon){return "https://www.google.com/maps/@?api=1&map_action=pano&viewpoint="+lat+"%2C"+lon}
+function woningHtml(p,naam){
+  if(!p||p.rd_x==null)return `<div class="sub">Kies een adres uit de lijst om de woning te zien.</div>`;
+  return `<div class="woning"><div class="lf"><img src="${luchtfotoUrl(p.rd_x,p.rd_y)}" alt="Luchtfoto van ${esc(naam||"het adres")}" loading="lazy" onerror="if(this.src.indexOf('Actueel_orthoHR')>-1){this.src=this.src.replace('Actueel_orthoHR','Actueel_ortho25')}else{this.closest('.lf').classList.add('lf-err')}"><span class="pin" aria-hidden="true"></span><span class="lf-msg">Luchtfoto niet beschikbaar</span></div>
+    <div class="row-acts">${p.lat!=null?`<a class="btn small" href="${streetViewUrl(p.lat,p.lon)}" target="_blank" rel="noopener">📷 Bekijk in Street View</a>`:""}<span class="sub">Luchtfoto: PDOK</span></div></div>`;
+}
+function woningSheet(id){
+  const k=S.kById[id];if(!k)return;
+  sheet("Woning "+k.naam,`<div class="full sub">${esc([k.adres,k.postcode,k.woonplaats].filter(Boolean).join(", "))}</div><div class="full" id="wsBox">${k.rd_x!=null?woningHtml(k,k.naam):`<div class="sub">Adres opzoeken…</div>`}</div>`,{});
+  if(k.rd_x==null)zoekPunt(k).then(async p=>{const b=$("#wsBox");if(!p||p.rd_x==null){if(b)b.innerHTML=`<div class="sub">Adres niet gevonden. Controleer straat, huisnummer en postcode bij de klant.</div>`;return}
+    Object.assign(k,p);if(b)b.innerHTML=woningHtml(k,k.naam);sb.from("klanten").update(p).eq("id",id).then(()=>{})});
+}
 function fmtPc(p){p=String(p||"").replace(/\s+/g,"").toUpperCase();return /^\d{4}[A-Z]{2}$/.test(p)?p.slice(0,4)+" "+p.slice(4):p}
 function adresAanvullen(inp,list,onPick){
   let t=null,seq=0,items=[];
@@ -1072,10 +1106,10 @@ function adresAanvullen(inp,list,onPick){
     const b=e.target.closest("[data-ac]");if(!b)return;
     const d=items[+b.dataset.ac];hide();
     try{
-      const r=await fetch(PDOK+"lookup?fl=straatnaam,huis_nlt,huisnummer,huisletter,huisnummertoevoeging,postcode,woonplaatsnaam,weergavenaam&id="+encodeURIComponent(d.id));
+      const r=await fetch(PDOK+"lookup?fl=straatnaam,huis_nlt,huisnummer,huisletter,huisnummertoevoeging,postcode,woonplaatsnaam,weergavenaam,centroide_ll,centroide_rd&id="+encodeURIComponent(d.id));
       const j=await r.json();const a=(j.response&&j.response.docs&&j.response.docs[0])||{};
       const nr=a.huis_nlt||[a.huisnummer,a.huisletter,a.huisnummertoevoeging?"-"+a.huisnummertoevoeging:""].filter(Boolean).join("");
-      onPick({adres:[a.straatnaam,nr].filter(Boolean).join(" ")||d.weergavenaam,postcode:fmtPc(a.postcode),woonplaats:a.woonplaatsnaam||""});
+      onPick({adres:[a.straatnaam,nr].filter(Boolean).join(" ")||d.weergavenaam,postcode:fmtPc(a.postcode),woonplaats:a.woonplaatsnaam||"",...punten(a)});
     }catch(x){const m=String(d.weergavenaam||"").match(/^(.*?),\s*(\d{4}\s?[A-Z]{2})\s+(.*)$/);if(m)onPick({adres:m[1],postcode:fmtPc(m[2]),woonplaats:m[3]});else onPick({adres:d.weergavenaam})}
   });
   inp.addEventListener("blur",()=>setTimeout(hide,150));
@@ -1534,6 +1568,7 @@ document.addEventListener("click",async e=>{
   if(t.id==="crewAgenda"){sheet("Agenda op je telefoon",`<div class="full list" id="agBox"></div>`,{});renderAgenda($("#agBox"));return}
   if(t.id==="meerBack"){meerMode="";renderMeer();return}
   if(d.meer){meerMode=d.meer;renderMeer();window.scrollTo(0,0);return}
+  if(d.woning){woningSheet(d.woning);return}
   if(d.foto){const k=S.kById[d.foto];if(k&&k.foto_pad)fotoSheet(k.foto_pad,k.naam);return}
   if(d.factuur){const b=S.beurten.find(x=>x.id===d.factuur);if(b){t.disabled=true;await maakFactuur(b.klant_id,[b.id]);t.disabled=false}return}
   if(d.factuurKlant){const ids=S.beurten.filter(b=>b.klant_id===d.factuurKlant&&b.status==="gedaan"&&!b.betaald).map(b=>b.id);t.disabled=true;await maakFactuur(d.factuurKlant,ids);t.disabled=false;return}
