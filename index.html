@@ -593,6 +593,7 @@ async function reload(){
   S.beurten=[...(old.data||[]),...(b.data||[])];
   const byK={};S.beurten.forEach(x=>{(byK[x.klant_id]=byK[x.klant_id]||[]).push(x)});
   S.klanten=(k.data||[]).map(x=>deriveKlant(x,byK[x.id]||[]));S.kById=Object.fromEntries(S.klanten.map(x=>[x.id,x]));
+  if(S.rol==="beheerder"&&S.inst&&S.inst.route_auto!==false){const dz=dagenZonderRoute();if(dz.length)setTimeout(()=>autoRoute(dz),300)}
   render();
 }
 async function run(promise,okMsg){
@@ -977,7 +978,9 @@ function beurtForm(id,preset={}){
       if(row.status==="gedaan"&&b.status!=="gedaan")row.gedaan_op=new Date().toISOString();
       if(!id)row.volgorde=bOn(fd.datum).length;
       const r=await run(id?sb.from("beurten").update(row).eq("id",id):sb.from("beurten").insert(row),id?"Beurt gewijzigd":"Beurt gepland op "+nice(fd.datum));
-      if(r){sel=fd.datum;render();if(!id||fd.datum!==b.datum)autoRoute([fd.datum])}
+      if(r){sel=fd.datum;render();const dagen=[];if(!id||fd.datum!==b.datum)dagen.push(fd.datum);
+        if(fd.status==="gedaan"&&b.status!=="gedaan"){const nx=S.beurten.filter(x=>x.klant_id===fd.klant_id&&x.status==="gepland"&&x.datum>fd.datum).sort((a,c)=>a.datum.localeCompare(c.datum))[0];if(nx){dagen.push(nx.datum);toast("Opgeslagen. Volgende beurt: "+nice(nx.datum))}}
+        if(dagen.length)autoRoute(dagen)}
       return r?true:false;
     },
     onDelete:id?async()=>{await run(sb.from("beurten").delete().eq("id",id),"Beurt verwijderd")}:null,
@@ -1014,7 +1017,7 @@ function klaarSheet(id){
     const {data,error}=await sb.rpc("beurt_klaar",{p_beurt_id:id,p_betaald:betaald,p_betaalwijze:wijze,p_bedrag:bedrag,p_onderdelen:sel_});
     if(error){toast("Afronden mislukt: "+error.message);return}
     toast(data&&data.datum?"Klaar ✓ Volgende beurt: "+nice(data.datum):"Klaar ✓");
-    await reload();
+    await reload();if(data&&data.datum)autoRoute([data.datum]);
   };
   const nd=n=>{let d=addDays(today()>b.datum?today():b.datum,n);if(parse(d).getDay()===0)d=addDays(d,1);return d};
   sheet("Klaar bij "+k.naam,`
@@ -1990,12 +1993,19 @@ async function routeSheet(datum){
     <div class="full sub">Afstanden zijn een schatting (hemelsbreed plus toeslag voor de weg). Begintijd ${esc(hm(S.inst.start_tijd)||"08:30")}, ${S.inst.min_per_adres||30} minuten per adres; aan te passen bij Meer → Bedrijfsgegevens.</div>
   `,{saveLabel:"Route gebruiken",onSave:async()=>{const ok=await routeToepassen(v);if(ok){toast("Route aangepast");await reload()}return ok}});
 }
+// dagen waar (automatisch geplande) beurten op dezelfde tijd staan: nog geen route gemaakt
+const routeGeprobeerd=new Set();
+function dagenZonderRoute(){
+  const t=today(),per={};
+  S.beurten.forEach(b=>{if(b.status==="gepland"&&b.datum>=t){const key=b.datum+"|"+(b.medewerker_id||"");(per[key]=per[key]||[]).push(b)}});
+  return [...new Set(Object.entries(per).filter(([,l])=>l.length>1&&new Set(l.map(b=>hm(b.tijd))).size<l.length).map(([k])=>k.split("|")[0]))].filter(d=>!routeGeprobeerd.has(d));
+}
 // automatisch na inplannen of verzetten
 let autoBezig=false;
 async function autoRoute(datums){
   if(!S.inst||S.inst.route_auto===false||autoBezig)return;
   autoBezig=true;let n=0;
-  try{for(const d of [...new Set(datums)].filter(Boolean)){if(d<today())continue;const v=await routeVoorstel(d);if(v&&await routeToepassen(v))n++}}
+  try{for(const d of [...new Set(datums)].filter(Boolean)){if(d<today())continue;routeGeprobeerd.add(d);const v=await routeVoorstel(d);if(v&&await routeToepassen(v))n++}}
   finally{autoBezig=false}
   if(n){await reload();toast(n===1?"Snelste route bijgewerkt":"Snelste route bijgewerkt voor "+n+" dagen")}
 }
