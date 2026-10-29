@@ -1838,22 +1838,38 @@ async function renderMws(){
 
 /* ---------- import ---------- */
 let importRows=[];
-const COLS={naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
+const COLS={wasdag:["vastewasdag","wasdag","voorkeursdag","dag"],starttijd:["starttijd","tijd"],start:["startdatum","eerstebeurt","start","datum"],winterstop:["winterstop","pauze","pauzemaanden"],vaste:["vastemaanden","maanden"],zakelijk:["zakelijk","zakelijkeklant","bedrijf"],naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
 function normH(h){return String(h||"").toLowerCase().replace(/[^a-z0-9-]/g,"")}
-function mapHeader(hdr){const m={};hdr.forEach((h,i)=>{const n=normH(h);for(const [k,al] of Object.entries(COLS)){if(m[k]==null&&al.some(a=>n===a.replace(/[^a-z0-9-]/g,"")||n.startsWith(a.replace(/[^a-z0-9-]/g,""))))m[k]=i}});return m}
+// eerst exacte kolomnamen, dan "begint met"; elke kolom hoort bij één veld
+function mapHeader(hdr){const m={},used=new Set(),cl=a=>a.replace(/[^a-z0-9-]/g,"");
+  for(const pass of [0,1])hdr.forEach((h,i)=>{if(used.has(i))return;const n=normH(h);if(!n)return;for(const [k,al] of Object.entries(COLS)){if(m[k]!=null)continue;if(al.some(a=>pass===0?n===cl(a):n.startsWith(cl(a)))){m[k]=i;used.add(i);break}}});return m}
+const DAGNAAM={ma:1,maandag:1,di:2,dinsdag:2,wo:3,woensdag:3,do:4,donderdag:4,vr:5,vrijdag:5,za:6,zaterdag:6};
+const MAANDNAAM={jan:1,januari:1,feb:2,februari:2,mrt:3,maa:3,maart:3,apr:4,april:4,mei:5,jun:6,juni:6,jul:7,juli:7,aug:8,augustus:8,sep:9,sept:9,september:9,okt:10,oktober:10,nov:11,november:11,dec:12,december:12};
+function leesDagen(s){return [...new Set(String(s||"").toLowerCase().split(/[^a-z]+/).map(w=>DAGNAAM[w]).filter(Boolean))].sort((a,b)=>a-b)}
+function leesMaanden(s){s=String(s||"").toLowerCase().trim();if(!s||/^(geen|nee|-|n\/?a)$/.test(s))return[];
+  const out=new Set(),mn=w=>MAANDNAAM[w]||MAANDNAAM[w.slice(0,3)];
+  s.replace(/([a-z]+)\s*(?:t\/m|tm|tot en met|tot|-|–)\s*([a-z]+)/g,(m0,a,b)=>{const x=mn(a),y=mn(b);if(x&&y){for(let i=x,n=0;n<12;n++){out.add(i);if(i===y)break;i=i%12+1}}return " "});
+  s.split(/[^a-z]+/).forEach(w=>{const x=w&&mn(w);if(x)out.add(x)});return [...out].sort((a,b)=>a-b)}
+function leesStartDatum(s){s=String(s||"").trim();if(!s)return"";if(/^\d{5}(\.\d+)?$/.test(s)){const d=new Date(Date.UTC(1899,11,30)+Math.floor(+s)*864e5);return d.toISOString().slice(0,10)}
+  let m=s.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2})$/);if(m)return `20${m[3]}-${pad(+m[2])}-${pad(+m[1])}`;return nlDatum(s)}
+function leesTijd(s){s=String(s||"").trim();const m=s.match(/^(\d{1,2})[:.u]?(\d{2})?/);if(!m||+m[1]>23)return"";return pad(+m[1])+":"+pad(+(m[2]||0))}
 function parseCSV(text){const first=text.split(/\r?\n/)[0]||"";const d=first.includes("\t")?"\t":(first.split(";").length>first.split(",").length?";":",");const out=[];let row=[],cur="",q=false;for(let i=0;i<text.length;i++){const c=text[i];if(q){if(c==='"'){if(text[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}else if(c==='"')q=true;else if(c===d){row.push(cur);cur=""}else if(c==="\n"||c==="\r"){if(c==="\r"&&text[i+1]==="\n")i++;row.push(cur);out.push(row);row=[];cur=""}else cur+=c}if(cur||row.length){row.push(cur);out.push(row)}return out.filter(r=>r.some(x=>String(x).trim()))}
 function rowsToKlanten(rows){
   if(!rows.length)return[];
-  let m=mapHeader(rows[0]);let data=rows.slice(1);
+  const hi=rows.slice(0,6).findIndex(r=>mapHeader(r).naam!=null);
+  let m=mapHeader(rows[Math.max(0,hi)]);let data=rows.slice(Math.max(0,hi)+1);
   if(m.naam==null){m={naam:0,adres:1,postcode:2,woonplaats:3,telefoon:4,prijs:5,interval_weken:6,notitie:7};data=rows}
   const g=(r,k)=>m[k]!=null?String(r[m[k]]??"").trim():"";
   return data.map(r=>{const pr=Number(g(r,"prijs").replace(/[€\s]/g,"").replace(",","."))||0;const iv=parseInt(g(r,"interval_weken"))||6;
-    return{naam:g(r,"naam"),adres:[g(r,"adres"),g(r,"huisnr")].filter(Boolean).join(" "),postcode:g(r,"postcode").toUpperCase(),woonplaats:g(r,"woonplaats"),telefoon:g(r,"telefoon"),email:g(r,"email"),prijs:pr,interval_weken:Math.min(52,Math.max(1,iv)),notitie:g(r,"notitie")}}).filter(k=>k.naam);
+    const vaste=leesMaanden(g(r,"vaste"));
+    return{naam:g(r,"naam"),adres:[g(r,"adres"),g(r,"huisnr")].filter(Boolean).join(" "),postcode:fmtPc(g(r,"postcode")),woonplaats:g(r,"woonplaats"),telefoon:g(r,"telefoon"),email:g(r,"email"),prijs:pr,interval_weken:Math.min(52,Math.max(1,iv)),notitie:g(r,"notitie"),
+      voorkeur_dagen:leesDagen(g(r,"wasdag")),vaste_maanden:vaste,pauze_maanden:vaste.length?[]:leesMaanden(g(r,"winterstop")),zakelijk:/^(j|ja|yes|y|x|1|true|zakelijk)$/i.test(g(r,"zakelijk")),
+      _start:leesStartDatum(g(r,"start")),_tijd:leesTijd(g(r,"starttijd"))}}).filter(k=>k.naam&&!/^voorbeeld/i.test(k.naam));
 }
 function renderImport(){
   $("#meerBody").innerHTML=`
     <div class="panel" style="flex-direction:column;align-items:stretch;gap:10px">
-      <div class="sub">Kies een Excel- of CSV-bestand, of plak een lijst (bijvoorbeeld gekopieerd uit Excel). De eerste regel mag kolomnamen hebben zoals <strong>naam, adres, postcode, woonplaats, telefoon, prijs, weken, notitie</strong>. Zonder kolomnamen gebruik ik die volgorde.</div>
+      <div class="sub">Kies een Excel- of CSV-bestand, of plak een lijst (bijvoorbeeld gekopieerd uit Excel). Gebruik het liefst het Excel-sjabloon; dan worden ook vaste wasdag, winterstop, startdatum en zakelijk ingelezen. Andere lijsten werken ook als de eerste regel kolomnamen heeft zoals <strong>naam, adres, postcode, woonplaats, telefoon, prijs, weken, notitie</strong>.</div>
       <div class="row-acts"><label class="btn small" for="impFile" style="cursor:pointer">📄 Bestand kiezen</label><input id="impFile" type="file" accept=".csv,.txt,.xlsx,.xls" hidden></div>
       <textarea id="impText" rows="5" placeholder="Of plak hier je lijst…" style="padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%"></textarea>
       <div><button class="btn ghost small" type="button" id="impParse">Bekijk wat er geïmporteerd wordt</button></div>
@@ -1861,11 +1877,17 @@ function renderImport(){
     <div id="impPrev"></div>`;
   const show_=()=>{const n=importRows.length;const dup=importRows.filter(r=>S.klanten.some(k=>k.naam.toLowerCase()===r.naam.toLowerCase()&&(k.adres||"").toLowerCase()===r.adres.toLowerCase())).length;
     $("#impPrev").innerHTML=n?`<div class="section-h">${n} klanten gevonden</div>${dup?`<div class="sub">${dup} daarvan staan er al in (zelfde naam en adres) en worden overgeslagen.</div>`:""}
-      <div class="scrollx"><table class="tbl"><tr><th>Naam</th><th>Adres</th><th>Plaats</th><th>Telefoon</th><th class="r">Prijs</th><th class="r">Weken</th></tr>${importRows.slice(0,25).map(r=>`<tr><td>${esc(r.naam)}</td><td>${esc(r.adres)}</td><td>${esc(r.woonplaats)}</td><td>${esc(r.telefoon)}</td><td class="r">${euro(r.prijs)}</td><td class="r">${r.interval_weken}</td></tr>`).join("")}</table></div>
+      <div class="scrollx"><table class="tbl"><tr><th>Naam</th><th>Adres</th><th>Plaats</th><th>Telefoon</th><th class="r">Prijs</th><th>Hoe vaak</th><th>Eerste beurt</th></tr>${importRows.slice(0,25).map(r=>`<tr><td>${esc(r.naam)}${r.zakelijk?' <span class="pill p-plain">zakelijk</span>':""}</td><td>${esc(r.adres)}</td><td>${esc(r.woonplaats)}</td><td>${esc(r.telefoon)}</td><td class="r">${euro(r.prijs)}</td><td>${esc(freqText(r))}</td><td>${r._start?nice(r._start)+(r._tijd?" "+r._tijd:""):'<span class="sub">later</span>'}</td></tr>`).join("")}</table></div>
+      <div class="sub">${importRows.filter(r=>r._start).length} klanten worden meteen ingepland. Klanten zonder startdatum plan je later in met de gele melding.</div>
       ${n>25?`<div class="sub">…en nog ${n-25} meer.</div>`:""}<div class="row-acts"><button class="btn" type="button" id="impGo">Importeer ${n-dup} klanten</button></div>`:`<div class="empty">Geen klanten herkend. Staat de naam in de eerste kolom?</div>`;
     const go=$("#impGo");if(go)go.onclick=async()=>{go.disabled=true;const todo=importRows.filter(r=>!S.klanten.some(k=>k.naam.toLowerCase()===r.naam.toLowerCase()&&(k.adres||"").toLowerCase()===r.adres.toLowerCase()));
-      for(let i=0;i<todo.length;i+=200){const {error}=await sb.from("klanten").insert(todo.slice(i,i+200));if(error){toast("Import mislukt: "+error.message);go.disabled=false;return}}
-      importRows=[];await reload();toast(todo.length+" klanten geïmporteerd");meerMode="";tab="klanten";setTab()}};
+      const beurten=[];
+      for(let i=0;i<todo.length;i+=200){const part=todo.slice(i,i+200);const rows=part.map(({_start,_tijd,...k})=>k);
+        const {data,error}=await sb.from("klanten").insert(rows).select("id");if(error){toast("Import mislukt: "+error.message);go.disabled=false;return}
+        (data||[]).forEach((d,j)=>{const r=part[j];if(r&&r._start)beurten.push({klant_id:d.id,datum:r._start,tijd:r._tijd||null,tijd_vast:!!r._tijd,bedrag:r.prijs||0})})}
+      if(beurten.length){const {error}=await sb.from("beurten").insert(beurten);if(error)toast("Klanten staan erin, maar inplannen mislukt: "+error.message)}
+      importRows=[];await reload();toast(todo.length+" klanten geïmporteerd"+(beurten.length?", "+beurten.length+" ingepland":""));
+      if(beurten.length)autoRoute(beurten.map(b=>b.datum));meerMode="";tab="klanten";setTab()}};
   $("#impParse").onclick=()=>{importRows=rowsToKlanten(parseCSV($("#impText").value||""));show_()};
   $("#impFile").onchange=async e=>{const f=e.target.files&&e.target.files[0];if(!f)return;
     try{if(/\.xlsx?$/i.test(f.name)){await loadScript("https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js");const wb=XLSX.read(await f.arrayBuffer(),{type:"array"});const ws=wb.Sheets[wb.SheetNames[0]];importRows=rowsToKlanten(XLSX.utils.sheet_to_json(ws,{header:1,raw:false,defval:""}))}else{importRows=rowsToKlanten(parseCSV(await f.text()))}show_()}catch(x){toast("Bestand lezen mislukt: "+x.message)}};
