@@ -105,6 +105,12 @@ a.btn{text-decoration:none;display:inline-block}
 @media (prefers-reduced-motion:no-preference){.laat-dot{animation:puls 1.6s ease-in-out 3}@keyframes puls{50%{transform:scale(1.25)}}}
 .startbox{background:var(--surface2);border-radius:8px;padding:10px}
 .startbox input[type=date],.startbox input[type=time],#pnRows input{padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);width:auto}
+.snel-kaart{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px}
+.snel-kop{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.dagchip{border:1px solid var(--line);background:var(--bg);border-radius:999px;padding:6px 12px;font-weight:600;color:var(--ink)}
+.dagchip[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);border-color:var(--sel)}
+.snel-acties{display:flex;gap:8px;flex-wrap:wrap;position:sticky;bottom:calc(70px + env(safe-area-inset-bottom,0px));background:var(--bg);padding-block:10px;z-index:3}
+@media (min-width:821px){.snel-acties{bottom:0}}
 .ac{position:relative}
 .ac-list{position:absolute;left:0;right:0;top:100%;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px var(--shadow);overflow:hidden;text-transform:none;letter-spacing:0}
 .ac-item{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:10px 12px;font-size:15px;font-weight:500;color:var(--ink)}
@@ -379,7 +385,7 @@ nav.tabs svg{width:22px;height:22px}
 
   <!-- KLANTEN -->
   <section data-view="klanten" hidden>
-    <div class="bar"><h2>Klanten</h2><button class="btn small" id="addKlant" type="button">+ Klant</button></div>
+    <div class="bar"><h2>Klanten</h2><div class="nav"><button class="btn ghost small" id="snelKlanten" type="button">✍️ Meerdere tegelijk</button><button class="btn small" id="addKlant" type="button">+ Klant</button></div></div>
     <div class="filters">
       <input class="search" id="zoek" type="search" placeholder="Zoek op naam, adres, plaats of telefoon" style="flex:1;min-width:200px">
       <select id="kFilter" aria-label="Filter">
@@ -1357,7 +1363,7 @@ async function maakFactuur(klantId,beurtIds){
 }
 
 /* ---------- Meer ---------- */
-const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bank","🏦","Bankafschriften","Betalingen koppelen en uitgaven boeken"],["export","📦","Export voor boekhouder","Excel en alle bonnen in één bestand"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bank","🏦","Bankafschriften","Betalingen koppelen en uitgaven boeken"],["export","📦","Export voor boekhouder","Excel en alle bonnen in één bestand"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["snel","✍️","Klanten snel invoeren","Meerdere klanten achter elkaar, zonder Excel"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
 function renderMeer(){
   $("#meerBack").hidden=!meerMode;
   const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
@@ -1372,6 +1378,7 @@ function renderMeer(){
   if(meerMode==="bedrijf")return renderBedrijf();
   if(meerMode==="medewerkers")return renderMws();
   if(meerMode==="import")return renderImport();
+  if(meerMode==="snel")return renderSnel();
   if(meerMode==="teksten"){meerMode="";renderMeer();tplSheet();return}
 }
 let omzetJaar=new Date().getFullYear();
@@ -1856,6 +1863,78 @@ async function renderMws(){
     toast(fd.naam+" heeft nu toegang");await reload();renderMws()};
 }
 
+/* ---------- klanten snel invoeren (zonder Excel) ---------- */
+const SNEL_KEY="zs-snel-concept";
+const STOPS={"":"Geen winterstop","12,1,2":"Dec t/m feb","11,12,1,2,3":"Nov t/m mrt","12,1":"Dec t/m jan"};
+let snel=[];
+function snelLeeg(prev){return{naam:"",adres:"",postcode:"",woonplaats:prev?prev.woonplaats:"",telefoon:"",prijs:prev?prev.prijs:"",weken:prev?prev.weken:"6",dagen:prev?prev.dagen.slice():[],stop:prev?prev.stop:"",start:prev?prev.start:"",notitie:"",zakelijk:false,punt:null}}
+function snelBewaar(){try{localStorage.setItem(SNEL_KEY,JSON.stringify(snel))}catch(e){}}
+function snelLaad(){try{const x=JSON.parse(localStorage.getItem(SNEL_KEY)||"null");if(Array.isArray(x)&&x.length)return x}catch(e){}return null}
+function snelKaart(r,i){
+  return `<div class="snel-kaart" data-snel="${i}">
+    <div class="snel-kop"><strong>Klant ${i+1}</strong>${snel.length>1?`<button class="iconbtn" type="button" data-snel-weg="${i}" aria-label="Klant ${i+1} weghalen">×</button>`:""}</div>
+    <div class="form">
+      <label class="full">Naam<input data-f="naam" value="${esc(r.naam)}" placeholder="Bijv. Fam. de Vries" autocomplete="off"></label>
+      <label class="full ac">Adres<input data-f="adres" value="${esc(r.adres)}" placeholder="Straat + huisnummer, of postcode + huisnummer" autocomplete="off"><div class="ac-list" hidden></div></label>
+      <label>Postcode<input data-f="postcode" value="${esc(r.postcode)}" placeholder="1234 AB"></label>
+      <label>Woonplaats<input data-f="woonplaats" value="${esc(r.woonplaats)}" list="snelPlaatsen"></label>
+      <label>Telefoon<input data-f="telefoon" type="tel" value="${esc(r.telefoon)}" placeholder="06 …"></label>
+      <label>Prijs (€)<input data-f="prijs" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(r.prijs)}"></label>
+      <label>Elke … weken<select data-f="weken">${[2,3,4,5,6,8,10,12,13,26].map(n=>`<option ${String(r.weken)===String(n)?"selected":""}>${n}</option>`).join("")}</select></label>
+      <label>Winterstop<select data-f="stop">${Object.entries(STOPS).map(([v,l])=>`<option value="${v}" ${r.stop===v?"selected":""}>${l}</option>`).join("")}</select></label>
+      <div class="full"><div class="sub" style="margin-bottom:4px">Vaste wasdag</div><div class="chips">${DAGK.map((x,n)=>`<button type="button" class="dagchip" data-dag="${n+1}" aria-pressed="${r.dagen.includes(n+1)}">${x}</button>`).join("")}</div></div>
+      <label>Eerste beurt<input data-f="start" type="date" value="${esc(r.start)}"></label>
+      <label class="chk" style="align-self:end"><input data-f="zakelijk" type="checkbox" ${r.zakelijk?"checked":""}> Zakelijk</label>
+      <label class="full">Notitie<input data-f="notitie" value="${esc(r.notitie)}" placeholder="Achterom, poort op slot …"></label>
+    </div></div>`;
+}
+function renderSnel(){
+  const box=$("#meerBody");
+  if(!snel.length)snel=snelLaad()||[snelLeeg()];
+  const plaatsen=[...new Set(S.klanten.map(k=>k.woonplaats).concat(snel.map(r=>r.woonplaats)).filter(Boolean))].sort();
+  box.innerHTML=`
+    <div class="sub">Vul per klant in wat je weet; alleen de naam is verplicht. <strong>+ Volgende klant</strong> neemt woonplaats, prijs, ronde, wasdag en eerste beurt van de vorige over. Wat je invult blijft bewaard tot je opslaat.</div>
+    <datalist id="snelPlaatsen">${plaatsen.map(p=>`<option value="${esc(p)}">`).join("")}</datalist>
+    <div id="snelLijst" class="list">${snel.map(snelKaart).join("")}</div>
+    <div class="snel-acties"><button class="btn ghost" type="button" id="snelNog">+ Volgende klant</button><button class="btn" type="button" id="snelOpslaan">Alles opslaan (${snel.filter(r=>r.naam.trim()).length})</button></div>
+    ${snel.some(r=>r.naam||r.adres)?`<div><button class="btn link" type="button" id="snelWis">Alles wissen en opnieuw beginnen</button></div>`:""}`;
+  const lijst=$("#snelLijst");
+  const tel=()=>{const b=$("#snelOpslaan");if(b)b.textContent=`Alles opslaan (${snel.filter(r=>r.naam.trim()).length})`};
+  lijst.addEventListener("input",e=>{const k=e.target.closest("[data-snel]");const f=e.target.dataset.f;if(!k||!f)return;const r=snel[+k.dataset.snel];
+    r[f]=e.target.type==="checkbox"?e.target.checked:e.target.value;if(f==="adres")r.punt=null;snelBewaar();tel()});
+  lijst.addEventListener("change",e=>{const k=e.target.closest("[data-snel]");const f=e.target.dataset.f;if(!k||!f)return;snel[+k.dataset.snel][f]=e.target.type==="checkbox"?e.target.checked:e.target.value;snelBewaar()});
+  lijst.addEventListener("click",e=>{
+    const d=e.target.closest("[data-dag]");if(d){const r=snel[+d.closest("[data-snel]").dataset.snel],n=+d.dataset.dag;r.dagen=r.dagen.includes(n)?r.dagen.filter(x=>x!==n):[...r.dagen,n].sort();d.setAttribute("aria-pressed",r.dagen.includes(n));snelBewaar();return}
+    const w=e.target.closest("[data-snel-weg]");if(w){snel.splice(+w.dataset.snelWeg,1);snelBewaar();renderSnel()}
+  });
+  // adres aanvullen per kaart
+  lijst.querySelectorAll("[data-snel]").forEach(card=>{const i=+card.dataset.snel,inp=card.querySelector('[data-f="adres"]');
+    adresAanvullen(inp,card.querySelector(".ac-list"),a=>{const r=snel[i];r.adres=a.adres;inp.value=a.adres;if(a.postcode){r.postcode=a.postcode;card.querySelector('[data-f="postcode"]').value=a.postcode}if(a.woonplaats){r.woonplaats=a.woonplaats;card.querySelector('[data-f="woonplaats"]').value=a.woonplaats}if(a.rd_x!=null)r.punt={lat:a.lat,lon:a.lon,rd_x:a.rd_x,rd_y:a.rd_y};snelBewaar()})});
+  $("#snelNog").onclick=()=>{snel.push(snelLeeg(snel[snel.length-1]));snelBewaar();renderSnel();const c=$$("#snelLijst [data-snel]");const last=c[c.length-1];if(last){last.scrollIntoView({behavior:"smooth",block:"start"});setTimeout(()=>{const n=last.querySelector('[data-f="naam"]');if(n)n.focus()},300)}};
+  const wis=$("#snelWis");if(wis)wis.onclick=()=>{if(!wis.dataset.zeker){wis.dataset.zeker="1";wis.textContent="Zeker weten? Tik nog een keer";return}snel=[snelLeeg()];snelBewaar();renderSnel()};
+  $("#snelOpslaan").onclick=snelOpslaan;
+}
+async function snelOpslaan(){
+  const btn=$("#snelOpslaan");const rows=snel.filter(r=>r.naam.trim());
+  if(!rows.length){toast("Vul minstens één naam in");return}
+  const dubbel=rows.filter(r=>S.klanten.some(k=>k.naam.toLowerCase()===r.naam.trim().toLowerCase()&&(k.adres||"").toLowerCase()===r.adres.trim().toLowerCase()));
+  const todo=rows.filter(r=>!dubbel.includes(r));
+  if(!todo.length){toast("Deze klanten staan er al in");return}
+  btn.disabled=true;btn.textContent="Opslaan…";
+  const klanten=todo.map(r=>({naam:r.naam.trim(),adres:r.adres.trim(),postcode:fmtPc(r.postcode),woonplaats:r.woonplaats.trim(),telefoon:r.telefoon.trim(),prijs:Number(String(r.prijs).replace(",","."))||0,
+    interval_weken:+r.weken||6,pauze_maanden:r.stop?r.stop.split(",").map(Number):[],vaste_maanden:[],voorkeur_dagen:r.dagen,notitie:r.notitie.trim(),zakelijk:!!r.zakelijk,actief:true,...(r.punt||{})}));
+  const {data,error}=await sb.from("klanten").insert(klanten).select("id");
+  if(error){toast("Opslaan mislukt: "+error.message);btn.disabled=false;tel_();return}
+  const beurten=[];(data||[]).forEach((d,j)=>{const r=todo[j];if(r&&r.start)beurten.push({klant_id:d.id,datum:r.start,bedrag:klanten[j].prijs})});
+  if(beurten.length){const {error:e2}=await sb.from("beurten").insert(beurten);if(e2)toast("Klanten staan erin, maar inplannen mislukt: "+e2.message)}
+  snel=[snelLeeg(todo[todo.length-1])];snel[0].start="";snelBewaar();
+  await reload();
+  toast(`${todo.length} ${todo.length===1?"klant":"klanten"} opgeslagen${beurten.length?", "+beurten.length+" ingepland":""}${dubbel.length?` (${dubbel.length} stond${dubbel.length===1?"":"en"} er al in)`:""}`);
+  if(beurten.length)autoRoute(beurten.map(b=>b.datum));
+  meerMode="";tab="klanten";setTab();
+  function tel_(){btn.textContent=`Alles opslaan (${rows.length})`}
+}
+
 /* ---------- import ---------- */
 let importRows=[];
 const COLS={wasdag:["vastewasdag","wasdag","voorkeursdag","dag"],starttijd:["starttijd","tijd"],start:["startdatum","eerstebeurt","start","datum"],winterstop:["winterstop","pauze","pauzemaanden"],vaste:["vastemaanden","maanden"],zakelijk:["zakelijk","zakelijkeklant","bedrijf"],naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
@@ -2162,6 +2241,7 @@ $("#next").onclick=()=>{sel=addDays(sel,mode==="week"?7:1);renderPlanning()};
 $("#todayBtn").onclick=()=>{sel=today();renderPlanning()};
 $("#addBtn").onclick=()=>beurtForm(null,{datum:tab==="planning"?sel:today()});
 $("#addKlant").onclick=()=>klantForm();
+$("#snelKlanten").onclick=()=>{tab="meer";meerMode="snel";setTab();window.scrollTo(0,0)};
 $("#cPrev").onclick=()=>{crewDay=addDays(crewDay,-1);loadCrew()};
 $("#cNext").onclick=()=>{crewDay=addDays(crewDay,1);loadCrew()};
 $("#cToday").onclick=()=>{crewDay=today();loadCrew()};
