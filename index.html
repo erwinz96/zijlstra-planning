@@ -401,6 +401,37 @@ nav.tabs svg{position:relative}
   .tijdlijn .item .side{grid-area:side;flex-direction:row;align-items:center;gap:8px}
   .tijdlijn .item .row-acts .btn{flex:0 0 auto}
 }
+
+/* =====================================================================
+   Zakelijke afwerking: rustiger vlakken, één accentkleur per rol,
+   lijn-iconen in plaats van emoji. Amber alleen nog voor + Beurt.
+   ===================================================================== */
+body{background:var(--bg)}
+:root{--r:12px}
+:root[data-theme="dark"]{--sel:#e8f1f6;--sel-ink:#0a1722;--bg:#0b1823;--surface:#112230;--surface2:#182d3d;--line:#21384a}
+:root:not([data-theme="dark"]){--sel:#0f2a3a;--sel-ink:#fff}
+.stat,.kl,.item,.panel,.col,.snel-kaart,.menu-card,.dchip,.day{box-shadow:none}
+.stat .v{font-weight:700;font-size:28px}
+.btn{font-weight:600}
+#addBtn{box-shadow:none}
+.btn.yellow:not(#addBtn){background:var(--warn-bg);color:var(--warn);box-shadow:none}
+.btn.ok{background:var(--ok-btn);box-shadow:none;color:#fff}
+.btn.wa{background:var(--ok-bg);color:var(--ok);box-shadow:none}
+.btn.ghost,.iconbtn{box-shadow:none}
+.dchip[aria-pressed="true"]{box-shadow:none}
+.tijdlijn .item::after{box-shadow:0 0 0 4px var(--bg)}
+svg.ico{width:1.05em;height:1.05em;vertical-align:-.17em;margin-right:6px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.note svg.ico{margin-right:5px;opacity:.85}
+.menu-card .ic{background:color-mix(in srgb,var(--accent) 13%,transparent);color:var(--accent);border-radius:10px}
+.menu-card .ic svg.ico{width:22px;height:22px;margin:0}
+.menu-card{transition:border-color .15s}
+.menu-card:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.off-kaart{cursor:pointer;color:inherit;font:inherit}
+.off-kaart:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.off-kop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.off-tot{font-size:15px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2)}
+.off-tot:empty{display:none}
+.off-besluit{border-top:1px solid var(--line);padding-top:10px}
 </style>
 </head>
 <body>
@@ -1541,12 +1572,210 @@ async function maakFactuur(klantId,beurtIds){
   }catch(e){$("#loading").hidden=true;toast("Factuur maken mislukt: "+e.message)}
 }
 
+/* ---------- offertes: prijsopgave voor nieuwe klanten ---------- */
+let OFF=[];
+const OFF_ST={open:["Verstuurd","p-warn"],akkoord:["Akkoord","p-ok"],afgewezen:["Afgewezen","p-plain"]};
+const offPrijs=o=>{const l=Array.isArray(o.onderdelen)?o.onderdelen:[];return l.length?Math.round(l.reduce((t,x)=>t+(+x.prijs||0),0)*100)/100:(+o.prijs||0)};
+const offFreq=n=>!+n?"eenmalig":+n===52?"elke week":"elke "+n+" weken";
+const datumJ=d=>longDate(d)+" "+String(d).slice(0,4);
+async function laadOffertes(){const {data,error}=await sb.from("offertes").select("*").order("created_at",{ascending:false});if(error){toast("Offertes laden mislukt: "+error.message);return false}OFF=data||[];return true}
+async function renderOffertes(){
+  const box=$("#meerBody");
+  if(!box.dataset.off){box.innerHTML=`<div class="empty">Offertes laden…</div>`}
+  if(!(await laadOffertes()))return;
+  if(meerMode!=="offertes")return;
+  const open=OFF.filter(o=>o.status==="open"),rest=OFF.filter(o=>o.status!=="open");
+  const verlopen=o=>o.status==="open"&&o.geldig_tot&&o.geldig_tot<today();
+  const kaart=o=>{const [t,c]=verlopen(o)?["Verlopen","p-bad"]:OFF_ST[o.status]||["",""];
+    return `<button class="kl off-kaart" type="button" data-off="${o.id}"><div class="main"><div class="name">${esc(o.naam||"Zonder naam")}</div><div class="sub">${esc(o.nummer)} · ${esc([o.adres,o.woonplaats].filter(Boolean).join(", ")||"geen adres")}</div><div class="sub">${esc(offFreq(o.interval_weken))}${o.geldig_tot&&o.status==="open"?" · geldig t/m "+nice(o.geldig_tot):""}</div></div><div class="meta"><strong>${euro(offPrijs(o))}</strong><span class="pill ${c}">${t}</span></div></button>`};
+  const conv=OFF.length?Math.round(OFF.filter(o=>o.status==="akkoord").length/Math.max(1,OFF.filter(o=>o.status!=="open").length)*100):0;
+  box.innerHTML=`
+    <div class="sub">Maak een prijsopgave voor een nieuwe klant en stuur hem als PDF via WhatsApp of mail. Gaat de klant akkoord, dan zet je hem met één tik in je klantenbestand.</div>
+    <div class="row-acts"><button class="btn" type="button" id="offNieuw">+ Nieuwe offerte</button></div>
+    ${OFF.length?`<div class="summary" style="grid-template-columns:repeat(3,1fr)"><div class="stat"><div class="k">Openstaand</div><div class="v">${open.length}</div><div class="s">${euro(open.reduce((t,o)=>t+offPrijs(o),0))} per beurt</div></div><div class="stat"><div class="k">Akkoord</div><div class="v">${OFF.filter(o=>o.status==="akkoord").length}</div><div class="s">nieuwe klant(en)</div></div><div class="stat"><div class="k">Gescoord</div><div class="v">${conv}%</div><div class="s">zei ja</div></div></div>`:""}
+    ${open.length?`<div class="group-h"><span>Wacht op antwoord</span></div><div class="list">${open.map(kaart).join("")}</div>`:""}
+    ${rest.length?`<div class="group-h"><span>Afgehandeld</span></div><div class="list">${rest.map(kaart).join("")}</div>`:""}
+    ${OFF.length?"":`<div class="empty">Nog geen offertes. Tik op <strong>+ Nieuwe offerte</strong> om je eerste prijsopgave te maken.</div>`}`;
+  box.dataset.off="1";
+  $("#offNieuw").onclick=()=>offerteForm();
+  box.querySelectorAll("[data-off]").forEach(b=>b.onclick=()=>offerteSheet(b.dataset.off));
+}
+function offNummer(){const j=today().slice(0,4);const n=OFF.filter(o=>String(o.nummer||"").startsWith("OF"+j)).map(o=>+String(o.nummer).split("-")[1]||0);return "OF"+j+"-"+String((n.length?Math.max(...n):0)+1).padStart(3,"0")}
+function offerteForm(id){
+  const o=id?OFF.find(x=>x.id===id):{interval_weken:6,onderdelen:[],zakelijk:false,woonplaats:""};
+  let ond=(Array.isArray(o.onderdelen)?o.onderdelen:[]).map(x=>({naam:x.naam||"",prijs:x.prijs??""}));let punt=o.lat!=null?{lat:o.lat,lon:o.lon,rd_x:o.rd_x,rd_y:o.rd_y}:null;
+  const plaatsen=[...new Set(S.klanten.map(x=>x.woonplaats).filter(Boolean))].sort();
+  const geldig=o.geldig_tot?Math.max(1,daysBetween(o.datum||today(),o.geldig_tot)):30;
+  const ondHtml=()=>ond.map((x,n)=>`<div class="ondrow"><input aria-label="Onderdeel" data-on="${n}" value="${esc(x.naam)}" placeholder="Bijv. voorkant"><input aria-label="Prijs" data-op="${n}" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(x.prijs)}" placeholder="€"><button class="iconbtn" type="button" data-ondel="${n}" aria-label="Verwijder onderdeel">×</button></div>`).join("");
+  const totaal=()=>ond.length?ond.reduce((t,x)=>t+(+String(x.prijs).replace(",",".")||0),0):(+String(($("#of-prijs")||{}).value||0).replace(",",".")||0);
+  sheet(id?"Offerte "+o.nummer:"Nieuwe offerte",`
+    <label class="full">Naam klant<input name="naam" required value="${esc(o.naam||"")}" placeholder="Bijv. Fam. de Vries of Bakkerij Hiemstra" autocomplete="off"></label>
+    <label class="chk full"><input type="checkbox" name="zakelijk" id="of-zak" ${o.zakelijk?"checked":""}> Zakelijke klant</label>
+    <label class="full" id="of-tavw" ${o.zakelijk?"":"hidden"}>T.a.v.<input name="tav" value="${esc(o.tav||"")}" placeholder="Contactpersoon"></label>
+    <label class="full ac">Adres<input name="adres" id="of-adres" value="${esc(o.adres||"")}" placeholder="Straat + huisnummer, of postcode + huisnummer" autocomplete="off"><div class="ac-list" hidden></div></label>
+    <label>Postcode<input name="postcode" id="of-pc" value="${esc(o.postcode||"")}"></label>
+    <label>Woonplaats<input name="woonplaats" id="of-wp" value="${esc(o.woonplaats||"")}" list="ofPlaatsen"><datalist id="ofPlaatsen">${plaatsen.map(p=>`<option value="${esc(p)}">`).join("")}</datalist></label>
+    <label>Telefoon<input name="telefoon" type="tel" value="${esc(o.telefoon||"")}" placeholder="06 …"></label>
+    <label>E-mail<input name="email" type="email" value="${esc(o.email||"")}"></label>
+    <div class="full"><div class="sub" style="margin-bottom:4px">Wat ga je wassen? Zet de prijs per onderdeel, of vul hieronder één totaalprijs in.</div>
+      <div id="ondList">${ondHtml()}</div>
+      <div class="chips" style="margin-top:6px"><button type="button" id="ondAdd">+ Onderdeel</button>${["Voorkant","Achterkant","Zijkant","Dakramen","Serre","Kozijnen"].map(x=>`<button type="button" data-ondq="${x}">+ ${x}</button>`).join("")}</div></div>
+    <label id="of-prijsw" ${ond.length?"hidden":""}>Prijs per beurt (€)<input id="of-prijs" name="prijs" type="number" inputmode="decimal" step="0.01" min="0" value="${esc(o.prijs||"")}"></label>
+    <label>Hoe vaak<select name="interval_weken">${[[4,"Elke 4 weken"],[6,"Elke 6 weken"],[8,"Elke 8 weken"],[10,"Elke 10 weken"],[12,"Elke 12 weken"],[13,"4× per jaar"],[17,"3× per jaar"],[26,"2× per jaar"],[52,"1× per jaar"],[0,"Eenmalig"]].map(([v,l])=>`<option value="${v}" ${+o.interval_weken===v?"selected":""}>${l}</option>`).join("")}</select></label>
+    <label>Geldig (dagen)<input name="geldig" type="number" min="1" max="365" value="${geldig}"></label>
+    <div class="full off-tot" id="of-tot"></div>
+    <label class="full">Opmerking op de offerte<textarea name="opmerking" rows="2" placeholder="Bijv. inclusief kozijnen afnemen. Eerste beurt mogelijk vanaf week 48.">${esc(o.opmerking||"")}</textarea></label>`,
+  {saveLabel:id?"Opslaan":"Offerte maken",onDelete:id?async()=>{const {error}=await sb.from("offertes").delete().eq("id",id);if(error)toast(error.message);else{toast("Offerte verwijderd");renderOffertes()}}:null,
+   onSave:async fd=>{
+    const l=ond.filter(x=>x.naam.trim()||x.prijs!=="").map(x=>({naam:x.naam.trim()||"Glazenwassen",prijs:+String(x.prijs).replace(",",".")||0}));
+    const prijs=l.length?l.reduce((t,x)=>t+x.prijs,0):(+String(fd.prijs||0).replace(",",".")||0);
+    if(!prijs){toast("Vul een prijs in");return false}
+    const datum=o.datum||today();
+    const rec={naam:fd.naam.trim(),zakelijk:!!fd.zakelijk,tav:fd.zakelijk?(fd.tav||"").trim():"",adres:(fd.adres||"").trim(),postcode:fmtPc(fd.postcode),woonplaats:(fd.woonplaats||"").trim(),telefoon:(fd.telefoon||"").trim(),email:(fd.email||"").trim(),
+      onderdelen:l,prijs:Math.round(prijs*100)/100,interval_weken:+fd.interval_weken,opmerking:(fd.opmerking||"").trim(),datum,geldig_tot:addDays(datum,Math.max(1,+fd.geldig||30)),...(punt||{lat:null,lon:null,rd_x:null,rd_y:null})};
+    let res;
+    if(id)res=await sb.from("offertes").update(rec).eq("id",id).select().single();
+    else{rec.nummer=offNummer();rec.status="open";res=await sb.from("offertes").insert(rec).select().single()}
+    if(res.error){toast("Opslaan mislukt: "+res.error.message);return false}
+    await laadOffertes();renderOffertes();setTimeout(()=>offerteSheet(res.data.id),60);
+  },
+  extra:()=>{
+    const tot=()=>{const v=totaal();const n=+$("#sf [name=interval_weken]").value;const pj=n?Math.round(52/n):1;$("#of-tot").innerHTML=v?`<strong>${euro(v)}</strong> per beurt${n?` · ca. <strong>${euro(v*pj)}</strong> per jaar (${pj} beurten)`:""}`:"";};
+    const redraw=()=>{$("#ondList").innerHTML=ondHtml();$("#of-prijsw").hidden=!!ond.length;tot()};
+    $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined)ond[+a.op].prijs=e.target.value;tot()});
+    $("#ondList").addEventListener("click",e=>{const x=e.target.closest("[data-ondel]");if(x){ond.splice(+x.dataset.ondel,1);redraw()}});
+    $("#ondAdd").onclick=()=>{ond.push({naam:"",prijs:""});redraw();const ins=$$("#ondList [data-on]");if(ins.length)ins[ins.length-1].focus()};
+    $$("[data-ondq]").forEach(x=>x.onclick=()=>{ond.push({naam:x.dataset.ondq,prijs:""});redraw();const ins=$$("#ondList [data-op]");if(ins.length)ins[ins.length-1].focus()});
+    $("#of-prijs").addEventListener("input",tot);$("#sf [name=interval_weken]").addEventListener("change",tot);
+    $("#of-zak").onchange=e=>{$("#of-tavw").hidden=!e.target.checked};
+    const ai=$("#of-adres");ai.addEventListener("input",()=>{punt=null});
+    adresAanvullen(ai,ai.parentElement.querySelector(".ac-list"),a=>{ai.value=a.adres;if(a.postcode)$("#of-pc").value=a.postcode;if(a.woonplaats)$("#of-wp").value=a.woonplaats;if(a.rd_x!=null)punt={lat:a.lat,lon:a.lon,rd_x:a.rd_x,rd_y:a.rd_y}});
+    tot();
+  }});
+}
+function offWaTekst(o){const I=S.inst||{};const p=offPrijs(o);
+  return `Beste ${o.tav||o.naam},\n\nHierbij onze prijsopgave (${o.nummer}) voor het glazenwassen${o.adres?" aan de "+o.adres:""}:\n\n${(o.onderdelen||[]).length?o.onderdelen.map(x=>"• "+x.naam+": "+euro(x.prijs)).join("\n")+"\n":""}Totaal: ${euro(p)} per beurt, ${offFreq(o.interval_weken)}.${o.opmerking?"\n"+o.opmerking:""}\n\nDeze offerte is geldig tot en met ${datumJ(o.geldig_tot||addDays(today(),30))}. Laat u even weten of u akkoord gaat? Dan plannen we de eerste beurt in.\n\nMet vriendelijke groet,\n${I.bedrijfsnaam||"Zijlstra Schoonmaak"}`}
+function offerteSheet(id){
+  const o=OFF.find(x=>x.id===id);if(!o)return;
+  const [st,stc]=OFF_ST[o.status]||["",""];const wa=waLink(o.telefoon,offWaTekst(o));
+  sheet("Offerte "+o.nummer,`
+    <div class="full off-kop"><div><div class="name" style="font-weight:700;font-size:17px">${esc(o.naam)}</div><div class="sub">${esc([o.adres,[o.postcode,o.woonplaats].filter(Boolean).join(" ")].filter(Boolean).join(", "))}</div></div><span class="pill ${stc}">${st}</span></div>
+    <div class="full"><table class="tbl">${(o.onderdelen||[]).length?o.onderdelen.map(x=>`<tr><td>${esc(x.naam)}</td><td style="text-align:right">${euro(x.prijs)}</td></tr>`).join(""):`<tr><td>Glazenwassen</td><td style="text-align:right">${euro(o.prijs)}</td></tr>`}<tr><td><strong>Per beurt</strong></td><td style="text-align:right"><strong>${euro(offPrijs(o))}</strong></td></tr></table>
+      <div class="sub" style="margin-top:6px">${esc(offFreq(o.interval_weken))[0].toUpperCase()+esc(offFreq(o.interval_weken)).slice(1)} · geldig t/m ${nice(o.geldig_tot)}</div></div>
+    <div class="full row-acts"><button class="btn" type="button" id="ofPdf">PDF maken en delen</button>${wa?`<a class="btn wa" href="${wa}" target="_blank" rel="noopener" id="ofWa">💬 Stuur via WhatsApp</a>`:""}<button class="btn ghost" type="button" id="ofEdit">Wijzig</button></div>
+    ${o.status==="open"?`<div class="full off-besluit"><div class="sub">Heeft de klant gereageerd?</div><div class="row-acts"><button class="btn ok" type="button" id="ofJa">✓ Akkoord, maak klant</button><button class="btn ghost" type="button" id="ofNee">Afgewezen</button></div></div>`:""}
+    ${o.status==="akkoord"&&o.klant_id&&S.kById[o.klant_id]?`<div class="full row-acts"><button class="btn ghost" type="button" id="ofKlant">Naar klant ${esc(o.naam)}</button></div>`:""}
+    ${o.status==="afgewezen"?`<div class="full row-acts"><button class="btn ghost" type="button" id="ofHeropen">Toch weer openzetten</button></div>`:""}`,
+  {extra:close=>{
+    $("#ofPdf").onclick=()=>offertePdf(o);
+    $("#ofEdit").onclick=()=>{close();offerteForm(o.id)};
+    const zet=async(status,extra={})=>{const {error}=await sb.from("offertes").update({status,...extra}).eq("id",o.id);if(error){toast(error.message);return false}return true};
+    const ja=$("#ofJa");if(ja)ja.onclick=async()=>{ja.disabled=true;
+      const dub=S.klanten.find(k=>k.naam.toLowerCase()===o.naam.toLowerCase()&&(k.adres||"").toLowerCase()===(o.adres||"").toLowerCase());
+      let kid=dub&&dub.id;
+      if(!kid){const iv=+o.interval_weken||0;const k={naam:o.naam,tav:o.tav||"",adres:o.adres||"",postcode:o.postcode||"",woonplaats:o.woonplaats||"",telefoon:o.telefoon||"",email:o.email||"",zakelijk:!!o.zakelijk,prijs:offPrijs(o),onderdelen:o.onderdelen||[],interval_weken:iv||52,actief:iv>0,notitie:o.opmerking||"",lat:o.lat,lon:o.lon,rd_x:o.rd_x,rd_y:o.rd_y};
+        const {data,error}=await sb.from("klanten").insert(k).select("id").single();if(error){toast("Klant maken mislukt: "+error.message);ja.disabled=false;return}kid=data.id}
+      if(!(await zet("akkoord",{klant_id:kid})))return;
+      close();await reload();toast("Akkoord ✓ "+o.naam+" staat in je klanten. Kies nu de eerste beurt.");renderOffertes();setTimeout(()=>klantForm(kid),80)};
+    const nee=$("#ofNee");if(nee)nee.onclick=async()=>{if(await zet("afgewezen")){close();toast("Offerte op afgewezen gezet");renderOffertes()}};
+    const her=$("#ofHeropen");if(her)her.onclick=async()=>{if(await zet("open")){close();renderOffertes()}};
+    const kl=$("#ofKlant");if(kl)kl.onclick=()=>{close();klantForm(o.klant_id)};
+  }});
+}
+async function offertePdf(o){
+  const I=S.inst||{};
+  if(!I.bedrijfsnaam){toast("Vul eerst je bedrijfsgegevens in (Meer → Bedrijfsgegevens)");return}
+  $("#loading").hidden=false;
+  try{
+    await loadScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js");
+    const logo=I.logo_pad?await dataUrlFromPath(I.logo_pad):"";
+    const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:"mm",format:"a4"});
+    const E=n=>"€ "+(Number(n)||0).toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+    const L=20,R=190;let y=20;
+    if(logo){try{const p=doc.getImageProperties(logo);const h=18,w=Math.min(60,p.width*h/p.height);doc.addImage(logo,L,y-4,w,h)}catch(e){}}
+    doc.setFont("helvetica","bold");doc.setFontSize(13);doc.text(I.bedrijfsnaam||"",R,y,{align:"right"});
+    doc.setFont("helvetica","normal");doc.setFontSize(9);
+    [I.adres,[I.postcode,I.plaats].filter(Boolean).join(" "),I.telefoon,I.email,I.kvk?"KvK "+I.kvk:"",I.btw_nummer&&!I.kor?"Btw "+I.btw_nummer:""].filter(Boolean).forEach(l=>{y+=4.6;doc.text(l,R,y,{align:"right"})});
+    y=Math.max(y,46)+10;
+    doc.setFont("helvetica","bold");doc.setFontSize(22);doc.text("Offerte",L,y);
+    y+=10;doc.setFontSize(10);doc.setFont("helvetica","normal");
+    const kb=[o.naam,o.tav?"t.a.v. "+o.tav:"",o.adres,[o.postcode,o.woonplaats].filter(Boolean).join(" "),o.email].filter(Boolean);
+    kb.forEach((l,n)=>doc.text(l,L,y+n*5));
+    [["Offertenummer",o.nummer],["Datum",datumJ(o.datum)],["Geldig tot en met",datumJ(o.geldig_tot)]].forEach(([a,b],n)=>{doc.setFont("helvetica","bold");doc.text(a,120,y+n*5);doc.setFont("helvetica","normal");doc.text(b,R,y+n*5,{align:"right"})});
+    y+=Math.max(kb.length,3)*5+8;
+    doc.text(doc.splitTextToSize(`Hartelijk dank voor uw aanvraag. Hieronder vindt u onze prijsopgave voor het glazenwassen${o.adres?" aan de "+o.adres:""}.`,R-L),L,y);y+=12;
+    doc.setFillColor(238,243,246);doc.rect(L,y-5,R-L,8,"F");doc.setFont("helvetica","bold");
+    doc.text("Omschrijving",L+2,y);doc.text("Prijs per beurt",R-2,y,{align:"right"});doc.setFont("helvetica","normal");y+=8;
+    const lines=(o.onderdelen||[]).length?o.onderdelen.map(x=>["Glazenwassen – "+x.naam,+x.prijs||0]):[["Glazenwassen",+o.prijs||0]];
+    lines.forEach(([t,v])=>{doc.text(doc.splitTextToSize(t,120),L+2,y);doc.text(E(v),R-2,y,{align:"right"});y+=6});
+    const tot=offPrijs(o);
+    y+=2;doc.setDrawColor(205,217,224);doc.line(110,y,R,y);y+=6;
+    const t=+I.btw_tarief||21;
+    const tl=(a,b,bold)=>{doc.setFont("helvetica",bold?"bold":"normal");doc.text(a,110,y);doc.text(b,R-2,y,{align:"right"});y+=6};
+    if(I.kor){doc.setFontSize(12);tl("Totaal per beurt",E(tot),true)}
+    else if(I.prijzen_incl_btw){const ex=Math.round(tot/(1+t/100)*100)/100;tl("Excl. btw",E(ex));tl("Btw "+String(t).replace(".",",")+"%",E(tot-ex));doc.setFontSize(12);tl("Totaal per beurt",E(tot),true)}
+    else{const btw=Math.round(tot*t)/100;tl("Excl. btw",E(tot));tl("Btw "+String(t).replace(".",",")+"%",E(btw));doc.setFontSize(12);tl("Totaal per beurt",E(tot+btw),true)}
+    doc.setFontSize(10);doc.setFont("helvetica","normal");y+=4;
+    const iv=+o.interval_weken||0,pj=iv?Math.round(52/iv):0;
+    const freq=iv?`Wij komen ${offFreq(iv)} langs, dat is ongeveer ${pj} keer per jaar.`:"Dit is een eenmalige beurt.";
+    const tekst=[freq,o.opmerking||"",I.kor?"Vrijgesteld van btw op grond van de kleineondernemersregeling (KOR).":"","Gaat u akkoord? Laat het ons weten via WhatsApp, telefoon of mail, of stuur deze offerte ondertekend terug. Wij nemen dan contact met u op om de eerste beurt in te plannen."].filter(Boolean);
+    tekst.forEach(p=>{const s=doc.splitTextToSize(p,R-L);doc.text(s,L,y);y+=s.length*5+3});
+    y+=10;if(y>250){doc.addPage();y=30}
+    doc.setFont("helvetica","bold");doc.text("Voor akkoord",L,y);doc.text(I.bedrijfsnaam||"",120,y);doc.setFont("helvetica","normal");
+    y+=18;doc.setDrawColor(150);doc.line(L,y,L+60,y);doc.line(120,y,R,y);y+=5;doc.setFontSize(8.5);doc.setTextColor(110);doc.text("Naam, datum en handtekening",L,y);
+    doc.setFontSize(8);doc.setTextColor(120);doc.text(`${I.bedrijfsnaam}${I.kvk?" · KvK "+I.kvk:""}${I.telefoon?" · "+I.telefoon:""}`,105,287,{align:"center"});
+    const blob=doc.output("blob");const naam=`Offerte ${o.nummer} ${o.naam}.pdf`.replace(/[\\/:*?"<>|]/g,"");
+    const file=new File([blob],naam,{type:"application/pdf"});const url=URL.createObjectURL(blob);
+    $("#loading").hidden=true;
+    const canShare=!!(navigator.canShare&&navigator.canShare({files:[file]}));
+    sheet("Offerte "+o.nummer,`
+      <div class="full">Offerte voor <strong>${esc(o.naam)}</strong>: ${E(tot)} per beurt.</div>
+      <div class="full row-acts">${canShare?`<button class="btn" type="button" id="oShare">Delen (WhatsApp, mail…)</button>`:""}<a class="btn ghost" href="${url}" download="${esc(naam)}" target="_blank" rel="noopener">Openen / downloaden</a></div>
+      <div class="full sub">Kies bij Delen voor WhatsApp of Mail om de PDF direct naar de klant te sturen.</div>`,{});
+    const s=$("#oShare");if(s)s.onclick=async()=>{try{await navigator.share({files:[file],title:naam,text:`Offerte ${o.nummer} van ${I.bedrijfsnaam}`})}catch(e){}};
+  }catch(e){$("#loading").hidden=true;toast("Offerte maken mislukt: "+e.message)}
+}
+
+/* ---------- lijn-iconen in plaats van emoji in knoppen en menu ---------- */
+const IKON={
+  "💬":'<path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3 20.5l1.4-5A8.5 8.5 0 1 1 21 11.5z"/>',
+  "🏠":'<path d="M3 11l9-7 9 7"/><path d="M5 9.5V20h14V9.5"/><path d="M10 20v-6h4v6"/>',
+  "📋":'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
+  "⚡":'<circle cx="6" cy="19" r="2"/><circle cx="18" cy="5" r="2"/><path d="M8 19h8.5a3.5 3.5 0 0 0 0-7h-9a3.5 3.5 0 0 1 0-7H16"/>',
+  "📷":'<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
+  "📄":'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M9 13h6M9 17h6"/>',
+  "📅":'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  "📌":'<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5"/>',
+  "🌧":'<path d="M7 15a4 4 0 1 1 .9-7.9A5.5 5.5 0 0 1 18.5 9 3.5 3.5 0 0 1 18 16"/><path d="M9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5"/>',
+  "✍️":'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>',
+  "📦":'<path d="M3 7.5l9-4.5 9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5l9 4.5 9-4.5M12 12v9"/>',
+  "📊":'<path d="M3 20h18"/><path d="M7 16v-5M12 16V6M17 16v-8"/>',
+  "🧰":'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M3 10.5h18M16 15h2"/>',
+  "🧾":'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  "📈":'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  "🏦":'<path d="M3 9.5L12 4l9 5.5"/><path d="M5 10v8M10 10v8M14 10v8M19 10v8M3 20h18"/>',
+  "🏢":'<rect x="5" y="3" width="14" height="18" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2"/>',
+  "👷":'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2A6.5 6.5 0 0 1 21.5 20"/>',
+  "📥":'<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v3h16v-3"/>',
+  "📝":'<path d="M14 3H6v18h12V7z"/><path d="M14 3v4h4"/><path d="M8.5 16.5c1.5-2 2.5 1 4-.8s2 .3 3 .3"/><path d="M9 10h5"/>'
+};
+const IKON_RE=new RegExp("^\\s*("+Object.keys(IKON).map(k=>k.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")).join("|")+")\\uFE0F?\\s*");
+function ikoon(e){return `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">${IKON[e]}</svg>`}
+function ikonen(root){
+  (root||document).querySelectorAll(".btn,.note,.menu-card .ic,.off-ico").forEach(el=>{
+    const n=el.firstChild;if(!n||n.nodeType!==3)return;const m=n.nodeValue.match(IKON_RE);if(!m)return;
+    n.nodeValue=n.nodeValue.slice(m[0].length);el.insertAdjacentHTML("afterbegin",ikoon(m[1]));
+  });
+}
+new MutationObserver(ms=>{let doen=false;for(const m of ms){if(m.addedNodes.length||m.type==="characterData"){doen=true;break}}if(doen)ikonen()}).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+
 /* ---------- Meer ---------- */
-const MEER=[["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bank","🏦","Bankafschriften","Betalingen koppelen en uitgaven boeken"],["export","📦","Export voor boekhouder","Excel en alle bonnen in één bestand"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["snel","✍️","Klanten snel invoeren","Meerdere klanten achter elkaar, zonder Excel"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
+const MEER=[["offertes","📝","Offertes","Prijsopgave maken en als PDF versturen"],["omzet","📊","Omzetoverzicht","Per maand, per woonplaats en per betaalwijze"],["kosten","🧰","Kosten en bonnen","Uitgaven bijhouden met foto van de bon"],["btw","🧾","Btw per kwartaal","Bedragen voor je btw-aangifte"],["ib","📈","Inkomstenbelasting","Winst en aftrekposten per jaar"],["bank","🏦","Bankafschriften","Betalingen koppelen en uitgaven boeken"],["export","📦","Export voor boekhouder","Excel en alle bonnen in één bestand"],["bedrijf","🏢","Bedrijfsgegevens & facturen","Naam, KvK, btw, IBAN, logo, weerplaats"],["agenda","📅","iPhone-agenda koppelen","Beurten automatisch in je agenda"],["medewerkers","👷","Medewerkers","Eigen login met alleen hun dagroute"],["snel","✍️","Klanten snel invoeren","Meerdere klanten achter elkaar, zonder Excel"],["import","📥","Klanten importeren","Uit Excel of een lijst"],["teksten","💬","Berichtteksten","WhatsApp-teksten aanpassen"]];
 function renderMeer(){
   $("#meerBack").hidden=!meerMode;
   const it=MEER.find(m=>m[0]===meerMode);$("#meerTitle").textContent=it?it[2]:"Meer";
   if(!meerMode){$("#meerBody").innerHTML=MEER.map(([k,ic,t,d])=>`<button class="menu-card" type="button" data-meer="${k}"><span class="ic">${ic}</span><span><div class="t">${t}</div><div class="sub">${d}</div></span></button>`).join("");return}
+  if(meerMode==="offertes")return renderOffertes();
   if(meerMode==="omzet")return renderOmzet();
   if(meerMode==="btw")return renderBtw();
   if(meerMode==="kosten")return renderKosten();
