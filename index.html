@@ -432,6 +432,11 @@ svg.ico{width:1.05em;height:1.05em;vertical-align:-.17em;margin-right:6px;fill:n
 .off-tot{font-size:15px;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2)}
 .off-tot:empty{display:none}
 .off-besluit{border-top:1px solid var(--line);padding-top:10px}
+
+.rem-tekst{margin-top:6px;font-size:13.5px;line-height:1.4;padding:8px 10px;border-radius:var(--r-sm);background:var(--surface2);color:var(--ink);white-space:pre-wrap}
+.rem-rij{flex-wrap:wrap}.rem-rij .main{flex:1 1 100%}.rem-rij .meta{flex-direction:row;width:100%;justify-content:flex-start;gap:8px}
+.rem-alg{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.rem-alg .sub{margin-top:4px}
 </style>
 </head>
 <body>
@@ -539,7 +544,7 @@ svg.ico{width:1.05em;height:1.05em;vertical-align:-.17em;margin-right:6px;fill:n
     </div>
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
-      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn small" type="button" id="routeBtn" hidden>⚡ Snelste route</button><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
+      <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn small" type="button" id="routeBtn" hidden>⚡ Snelste route</button><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn wa small" type="button" id="morgenBtn" hidden>💬 Berichten voor morgen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
       <div class="list tijdlijn" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
@@ -680,19 +685,25 @@ function waNum(t){
   return s.length>=10?s:"";
 }
 const DEF_TPL={
-  herinnering:"Hoi {naam}, {wanneer} ({datum}) kom ik rond {tijd} uw ramen wassen. Tot dan! Groet, Zijlstra Schoonmaak",
-  beurt:"Hoi {naam}, het is weer tijd voor de glazenwasser. Schikt het als ik op {datum} langskom? Groet, Zijlstra Schoonmaak",
-  betaling:"Hoi {naam}, voor de wasbeurt van {datum} staat nog {bedrag} open. Wilt u dit overmaken of contant klaarleggen? Dank u wel! Groet, Zijlstra Schoonmaak",
-  verzet:"Hoi {naam}, vanwege het weer kan ik {oud} helaas niet komen. Ik kom nu {wanneer} ({datum}) uw ramen wassen. Groet, Zijlstra Schoonmaak"
+  herinnering:"{groet} {naam}, {wanneer} ({datum}) kom ik {moment} uw ramen wassen. Tot dan! Met vriendelijke groet, Zijlstra Schoonmaak",
+  beurt:"{groet} {naam}, het is weer tijd voor de glazenwasser. Schikt het als ik op {datum} langskom? Groet, Zijlstra Schoonmaak",
+  betaling:"{groet} {naam}, voor de wasbeurt van {datum} staat nog {bedrag} open. Wilt u dit overmaken of contant klaarleggen? Dank u wel! Groet, Zijlstra Schoonmaak",
+  verzet:"{groet} {naam}, vanwege het weer kan ik {oud} helaas niet komen. Ik kom nu {wanneer} ({datum}) uw ramen wassen. Groet, Zijlstra Schoonmaak"
 };
 const TPL_LABEL={herinnering:"Herinnering afspraak",beurt:"Aan de beurt",betaling:"Betaalherinnering",verzet:"Verzet door weer"};
 function getTpl(k){try{const o=JSON.parse(localStorage.getItem("zs-tpl")||"{}");if(o[k])return o[k]}catch(e){}return DEF_TPL[k]}
 function setTpl(o){try{localStorage.setItem("zs-tpl",JSON.stringify(o))}catch(e){}}
 function wanneer(d){const t=today();if(d===t)return"vandaag";if(d===addDays(t,1))return"morgen";if(d===addDays(t,2))return"overmorgen";return"op "+DNL[parse(d).getDay()]}
 function longDate(d){const x=parse(d);return DNL[x.getDay()]+" "+x.getDate()+" "+["januari","februari","maart","april","mei","juni","juli","augustus","september","oktober","november","december"][x.getMonth()]}
+function groetNu(){const h=new Date().getHours();return h<12?"Goedemorgen":h<18?"Goedemiddag":"Goedenavond"}
+function getMoment(){try{return localStorage.getItem("zs-moment")||"tijd"}catch(e){return"tijd"}}
+function setMoment(v){try{localStorage.setItem("zs-moment",v)}catch(e){}}
+function dagdeel(t){if(!t)return"";const h=+String(t).split(":")[0];return h<12?"in de ochtend":h<17?"in de middag":"in de avond"}
+function momentTekst(t,mode){mode=mode||getMoment();if(!t||mode==="geen")return"";return mode==="dagdeel"?dagdeel(t):"rond "+t}
 function fillTpl(k,v){
-  const voornaam=String(v.naam||"").replace(/^(fam\.?|familie|dhr\.?|mevr\.?|mw\.?)\s+/i,"");
-  return getTpl(k).replace(/\{naam\}/g,voornaam).replace(/\{datum\}/g,v.datum?longDate(v.datum):"").replace(/\{wanneer\}/g,v.datum?wanneer(v.datum):"").replace(/\{tijd\}/g,v.tijd||"").replace(/\{bedrag\}/g,v.bedrag!=null?euro(v.bedrag):"").replace(/\{oud\}/g,v.oud?wanneer(v.oud).replace(/^op /,""):"").replace(/\s+\(\)/g,"").replace(/rond\s+uw/,"uw");
+  const voornaam=String(v.naam||"").replace(/^(fam\.?|familie)\s+/i,"familie ").replace(/^(dhr\.?|mevr\.?|mw\.?)\s+/i,"");
+  const m=momentTekst(v.tijd,v.moment);
+  return getTpl(k).replace(/rond \{tijd\}/g,"{moment}").replace(/\{groet\}/g,groetNu()).replace(/\{moment\}/g,m).replace(/\{naam\}/g,voornaam).replace(/\{datum\}/g,v.datum?longDate(v.datum):"").replace(/\{wanneer\}/g,v.datum?wanneer(v.datum):"").replace(/\{tijd\}/g,v.tijd||"").replace(/\{bedrag\}/g,v.bedrag!=null?euro(v.bedrag):"").replace(/\{oud\}/g,v.oud?wanneer(v.oud).replace(/^op /,""):"").replace(/\s+\(\)/g,"").replace(/rond\s+uw/,"uw").replace(/[ \t]+,/g,",").replace(/[ \t]{2,}/g," ").replace(/^,\s*/,"");
 }
 function waLink(tel,text){const n=waNum(tel);return n?"https://wa.me/"+n+"?text="+encodeURIComponent(text):""}
 // knop: soort = herinnering|beurt|betaling, mark = "b:<beurtId>" of "k:<klantId>"
@@ -952,6 +963,7 @@ function renderDay(){
   const rem=list.filter(b=>b.status!=="gedaan"&&b.datum>=t);
   const rb=$("#remindBtn");rb.hidden=!rem.length;
   if(rem.length){const n=rem.filter(b=>!b.herinnering_op).length;rb.textContent=n?`💬 Herinneringen (${n})`:"💬 Herinneringen ✓"}
+  {const mg=$("#morgenBtn"),mo=addDays(t,1),ml=sel===t?bOn(mo).filter(b=>b.status!=="gedaan"):[];mg.hidden=!ml.length;if(ml.length){const n=ml.filter(b=>!b.herinnering_op).length;mg.textContent=n?`💬 Berichten voor morgen (${n})`:"💬 Berichten voor morgen ✓"}}
   if(!list.length){$("#dayList").innerHTML=`<div class="empty">Geen beurten op deze dag.<br><br><button class="btn small" type="button" data-new-beurt="${sel}">+ Beurt op ${nice(sel)}</button> <button class="btn ghost small" type="button" data-tab="routes">Plan via Routes</button></div>`;return}
   const groups=[];list.forEach(b=>{const k=S.kById[b.klant_id];const w=(k&&k.woonplaats)||"Onbekend";let g=groups.find(x=>x.w===w);if(!g){g={w,items:[]};groups.push(g)}g.items.push(b)});
   $("#dayList").innerHTML=groups.map(g=>`<div class="group-h"><span>${esc(g.w)}</span><span>${g.items.length} adr. · ${euro(sum(g.items))}</span></div>`+g.items.map((b)=>beurtCard(b,list)).join("")).join("");
@@ -1294,18 +1306,32 @@ function paySheet(ids,title){
 
 function remindSheet(datum){
   const list=bOn(datum).filter(b=>b.status!=="gedaan");
+  const tekst=b=>{const k=S.kById[b.klant_id]||{naam:""};return fillTpl("herinnering",{naam:k.naam,datum:b.datum,tijd:hm(b.tijd)})};
   const rows=()=>list.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};const x=S.beurten.find(y=>y.id===b.id)||b;
-    return `<div class="kl"><div class="main"><div class="name">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="sub">${esc(k.telefoon||"geen telefoonnummer")}${x.herinnering_op?" · ✓ geappt":""}</div></div><div class="meta">${waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,x.herinnering_op?"Opnieuw":"💬 Stuur")}</div></div>`}).join("");
-  sheet("Herinneringen "+nice(datum),`
-    <div class="full sub">Tik per klant op <strong>Stuur</strong>. WhatsApp opent met het bericht al ingevuld; jij tikt daar op verzenden en komt daarna terug in deze app.</div>
+    return `<div class="kl rem-rij"><div class="main"><div class="name">${esc(hm(b.tijd))} ${esc(k.naam)}</div><div class="sub">${esc(k.telefoon||"geen telefoonnummer")}${x.herinnering_op?" · ✓ verstuurd":""}</div><div class="rem-tekst">${esc(tekst(b))}</div></div><div class="meta"><button class="btn ghost small" type="button" data-remcopy="${b.id}">📋 Kopieer</button>${waBtn(k,"herinnering",{datum:b.datum,tijd:hm(b.tijd)},"b:"+b.id,x.herinnering_op?"Opnieuw":"💬 Stuur")}</div></div>`}).join("");
+  const algemeen=()=>fillTpl("herinnering",{naam:"",datum,tijd:""}).replace(/^(Goede(morgen|middag|navond))\s*,/,"$1,");
+  const mode=getMoment();
+  sheet((datum===addDays(today(),1)?"Berichten voor morgen":"Herinneringen")+" · "+nice(datum),`
+    <div class="full"><div class="sub" style="margin-bottom:6px">Wat zet je in het bericht?</div>
+      <div class="seg" role="group" aria-label="Tijd in bericht">${[["tijd","Tijd"],["dagdeel","Ochtend/middag"],["geen","Geen tijd"]].map(([v,l])=>`<button type="button" data-moment="${v}" aria-pressed="${mode===v}">${l}</button>`).join("")}</div></div>
+    <div class="full sub">De groet past zich aan het moment van versturen aan: nu wordt het <strong>${groetNu().toLowerCase()}</strong>. Tik op <strong>Kopieer</strong> om de tekst te plakken waar je wilt, of op <strong>Stuur</strong> om WhatsApp te openen met het bericht al ingevuld.</div>
     <div class="full list" id="remRows">${rows()}</div>
-    <div class="full sub">Voorbeeld: “${esc(fillTpl("herinnering",{naam:"Fam. de Vries",datum,tijd:"09:00"}))}”</div>
-    <div class="full"><button class="btn ghost small" type="button" data-tpl>Berichtteksten aanpassen</button></div>
-  `,{});
+    <div class="full panel rem-alg"><div><strong>Eén bericht voor iedereen</strong><div class="sub" id="remAlg">${esc(algemeen())}</div></div><button class="btn ghost small" type="button" id="remAlgCopy">📋 Kopieer</button></div>
+    <div class="full"><button class="btn ghost small" type="button" data-tpl>Berichttekst aanpassen</button></div>
+  `,{extra:()=>{
+    const kopie=async(txt,btn)=>{try{await navigator.clipboard.writeText(txt);toast("Gekopieerd. Plak het in WhatsApp of sms.")}catch(e){sheet("Bericht",`<label class="full">Houd de tekst ingedrukt om te kopiëren<textarea rows="5" readonly>${esc(txt)}</textarea></label>`,{});return}
+      if(btn){btn.textContent="✓ Gekopieerd"}};
+    const bind=()=>{
+      $$("[data-remcopy]").forEach(x=>x.onclick=()=>{const b=list.find(y=>y.id===x.dataset.remcopy);if(!b)return;kopie(tekst(b),x);const now=new Date().toISOString();const bb=S.beurten.find(y=>y.id===b.id);if(bb)bb.herinnering_op=now;sb.from("beurten").update({herinnering_op:now}).eq("id",b.id).then(()=>{})});
+    };
+    bind();
+    $("#remAlgCopy").onclick=e=>kopie(algemeen(),e.currentTarget);
+    $$("[data-moment]").forEach(x=>x.onclick=()=>{setMoment(x.dataset.moment);$$("[data-moment]").forEach(y=>y.setAttribute("aria-pressed",y===x));$("#remRows").innerHTML=rows();$("#remAlg").textContent=algemeen();bind()});
+  }});
 }
 function tplSheet(){
   sheet("Berichtteksten",`
-    <div class="full sub">Je kunt deze woorden gebruiken; de app vult ze zelf in: <strong>{naam}</strong>, <strong>{datum}</strong>, <strong>{wanneer}</strong> (vandaag/morgen), <strong>{tijd}</strong>, <strong>{bedrag}</strong>. De teksten worden op dit apparaat bewaard.</div>
+    <div class="full sub">Je kunt deze woorden gebruiken; de app vult ze zelf in: <strong>{naam}</strong>, <strong>{datum}</strong>, <strong>{wanneer}</strong> (vandaag/morgen), <strong>{tijd}</strong>, <strong>{moment}</strong> (rond 09:00 / in de ochtend), <strong>{groet}</strong> (goedemorgen/-middag/-avond, naar het moment van versturen), <strong>{bedrag}</strong>. De teksten worden op dit apparaat bewaard.</div>
     ${Object.keys(DEF_TPL).map(k=>`<label class="full tplbox">${esc(TPL_LABEL[k])}<textarea id="tpl-${k}" name="${k}" rows="4">${esc(getTpl(k))}</textarea></label>`).join("")}
     <div class="full"><button class="btn link" type="button" id="tplReset">Standaardteksten terugzetten</button></div>
   `,{onSave:async fd=>{const o={};Object.keys(DEF_TPL).forEach(k=>{const v=(fd[k]||"").trim();if(v&&v!==DEF_TPL[k])o[k]=v});setTpl(o);toast("Teksten opgeslagen");render();return true},
@@ -2583,6 +2609,7 @@ document.addEventListener("click",async e=>{
   if(d.logout!==undefined){await sb.auth.signOut();return}
   if(d.themeToggle!==undefined){const n=document.documentElement.getAttribute("data-theme")==="dark"?"light":"dark";document.documentElement.setAttribute("data-theme",n);try{localStorage.setItem("zs-theme",n)}catch(x){}const m=$("#themeColor");if(m)m.content=n==="dark"?"#060d12":"#123247";toast(n==="dark"?"Donker thema":"Licht thema");return}
   if(t.id==="remindBtn"){remindSheet(sel);return}
+  if(t.id==="morgenBtn"){remindSheet(addDays(today(),1));return}
   if(t.id==="shiftBtn"){shiftSheet(sel);return}
   if(t.id==="closeDayBtn"){dagSheet(sel);return}
   if(t.id==="copyDayBtn"){copySheet(sel);return}
