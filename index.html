@@ -10,7 +10,8 @@ var m=document.getElementById("themeColor");if(m)m.content=t==="dark"?"#060d12":
 <meta name="robots" content="noindex,nofollow">
 <title>Zijlstra Planning</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500..800&family=Barlow:wght@400;500;600;700&display=swap">
 <style>
 /* Layout: werkbus-dashboard — vaste kop, tabbalk onderin op mobiel, weekraster op desktop */
 :root{
@@ -267,6 +268,134 @@ nav.tabs svg{width:22px;height:22px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));background:var(--hdr);color:var(--hdr-ink);border:1px solid var(--line);padding:10px 16px;border-radius:999px;font-size:14px;z-index:30;max-width:calc(100% - 32px);text-align:center}
 .loading{position:fixed;top:calc(env(safe-area-inset-top,0px) + 60px);left:50%;transform:translateX(-50%);background:var(--surface);border:1px solid var(--line);padding:6px 12px;border-radius:999px;font-size:13px;z-index:7}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:up .18s ease-out}@keyframes up{from{transform:translateY(24px);opacity:.6}}}
+
+/* =====================================================================
+   Vormgeving "Helder glas" — avondblauw met mat-glazen panelen.
+   Kleur:  nacht #0a1722 · glas #132634 · rand #23394a · water #5cc8e6 · wisser-amber #f5b83d
+   Type:   Bricolage Grotesque (koppen, tijden, bedragen) · Barlow (tekst). Geen kapitalen-labels.
+   Kern:   de dagplanning is een route-tijdlijn met een genummerde stop per adres.
+   ===================================================================== */
+:root{
+  --display:"Bricolage Grotesque","Barlow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --bg:#edf3f7; --surface:#ffffff; --surface2:#e6eef4; --line:#d3e0e8;
+  --ink:#0f2a3a; --muted:#5b7181; --accent:#0a7ea4; --accent-ink:#ffffff;
+  --stripe:#f5b83d; --stripe-ink:#2a1c00; --sel:#0f2a3a; --sel-ink:#ffffff;
+  --hdr:rgba(255,255,255,.9); --hdr-ink:#0f2a3a; --glow:rgba(10,126,164,.10); --edge:rgba(255,255,255,.9);
+  --r:14px; --r-sm:10px; --shadow:rgba(15,42,58,.10);
+}
+:root[data-theme="dark"]{
+  --bg:#0a1722; --surface:#122533; --surface2:#1a3142; --line:#23394a;
+  --ink:#e8f1f6; --muted:#90a8b7; --accent:#5cc8e6; --accent-ink:#04202b;
+  --stripe:#f5b83d; --stripe-ink:#241800; --sel:#f5b83d; --sel-ink:#241800;
+  --note:#2e2814; --note-ink:#f2d78e;
+  --ok:#5bd394; --ok-bg:#103425; --warn:#f4b862; --warn-bg:#33270f; --bad:#ff8f86; --bad-bg:#3b1a1a;
+  --hdr:rgba(10,23,34,.9); --hdr-ink:#e8f1f6; --glow:rgba(92,200,230,.13); --edge:rgba(255,255,255,.06);
+  --shadow:rgba(0,0,0,.35);
+}
+body{background:radial-gradient(1100px 520px at 78% -12%,var(--glow),transparent 62%),radial-gradient(800px 420px at -10% 8%,var(--glow),transparent 60%),var(--bg);background-attachment:fixed;font-size:15.5px}
+
+/* kop en tabbalk van mat glas */
+header.top{background:var(--hdr);-webkit-backdrop-filter:saturate(1.4) blur(14px);backdrop-filter:saturate(1.4) blur(14px);border-bottom:1px solid var(--line)}
+:root[data-theme="dark"] header.top{border-bottom:1px solid rgba(255,255,255,.06)}
+.brand .logo{color:var(--hdr-ink)}
+.brand h1{font-family:var(--display);text-transform:none;letter-spacing:-.01em;font-size:22px;font-weight:750}
+.brand small{opacity:.7}
+.stripe{height:2px;background:linear-gradient(90deg,transparent 0%,var(--accent) 22%,rgba(255,255,255,.75) 50%,var(--accent) 78%,transparent 100%);opacity:.55}
+.desk-tabs button{border-radius:999px;padding:7px 14px;font-weight:600;color:var(--hdr-ink)}
+.desk-tabs button[aria-selected="true"]{background:var(--surface2);opacity:1}
+nav.tabs{background:var(--hdr);-webkit-backdrop-filter:saturate(1.4) blur(16px);backdrop-filter:saturate(1.4) blur(16px);border-top:1px solid var(--line)}
+:root[data-theme="dark"] nav.tabs{border-top:1px solid rgba(255,255,255,.06)}
+nav.tabs button{position:relative;font-weight:600}
+nav.tabs button[aria-selected="true"]::before{content:"";position:absolute;top:5px;left:50%;width:46px;height:30px;margin-left:-23px;border-radius:999px;background:color-mix(in srgb,var(--accent) 16%,transparent)}
+nav.tabs svg{position:relative}
+
+/* knoppen */
+.btn{border-radius:var(--r-sm);padding:10px 16px;font-weight:650;letter-spacing:.005em;transition:transform .08s ease,filter .15s ease}
+.btn.small{padding:7px 12px;font-size:13.5px}
+.btn:active{transform:scale(.97)}
+.btn.yellow,#addBtn{background:var(--stripe);color:var(--stripe-ink);box-shadow:0 6px 18px -8px rgba(245,184,61,.7)}
+.btn.ghost{background:var(--surface2);color:var(--ink);box-shadow:inset 0 1px 0 var(--edge)}
+.btn.ok{background:linear-gradient(180deg,#2fa565,#1f8a4c);box-shadow:0 6px 16px -8px rgba(31,138,76,.8)}
+.btn.wa{background:linear-gradient(180deg,#29b467,#1f9e55)}
+.btn:not(.ghost):not(.yellow):not(.ok):not(.wa):not(.danger):not(.link){background:var(--accent);color:var(--accent-ink)}
+.iconbtn{border-radius:8px;background:var(--surface2);box-shadow:inset 0 1px 0 var(--edge)}
+
+/* panelen als mat glas */
+.stat,.kl,.item,.panel,.col,.snel-kaart,.menu-card,.dchip,.day{background:var(--surface);border:1px solid var(--line);box-shadow:inset 0 1px 0 var(--edge),0 10px 24px -18px var(--shadow)}
+.stat{border-radius:var(--r);padding:14px 16px}
+.stat .k{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600;color:var(--muted)}
+.stat .v{font-family:var(--display);font-weight:750;font-size:30px;letter-spacing:-.02em;line-height:1.15}
+.stat .s{font-size:12.5px}
+.summary{gap:10px}
+.panel{border-radius:var(--r)}
+.kl,.menu-card,.snel-kaart{border-radius:var(--r)}
+.menu-card .ic{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:var(--surface2);font-size:21px}
+.bar h2{font-family:var(--display);text-transform:none;letter-spacing:-.015em;font-size:26px;font-weight:750}
+.section-h{font-family:var(--display);text-transform:none;letter-spacing:-.01em;font-weight:700}
+.group-h{text-transform:none;letter-spacing:0;font-size:13.5px;font-weight:650;color:var(--muted);border-bottom:none;padding:10px 2px 2px}
+.group-h > span:first-child{font-family:var(--display);font-size:16px;color:var(--ink);font-weight:700}
+.pill{text-transform:none;letter-spacing:0;font-size:12px;padding:3px 9px}
+.seg{border-radius:12px;padding:4px;background:var(--surface2);box-shadow:inset 0 1px 0 var(--edge)}
+.seg button{border-radius:9px;padding:6px 14px;font-size:13.5px}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 2px 8px -2px var(--shadow)}
+.empty{border-radius:var(--r);border-style:dashed;padding:34px 16px;background:color-mix(in srgb,var(--surface) 40%,transparent)}
+.note{border-radius:8px;padding:5px 9px}
+
+/* dagbalk */
+.dchip{border-radius:14px;padding:8px 2px 6px}
+.dchip .dn{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600}
+.dchip .dd{font-family:var(--display);font-size:24px;font-weight:750;letter-spacing:-.02em}
+.dchip.today:not([aria-pressed="true"]){box-shadow:inset 0 0 0 1.5px var(--accent),0 10px 24px -18px var(--shadow)}
+.dchip[aria-pressed="true"]{background:var(--sel);color:var(--sel-ink);border-color:transparent;box-shadow:0 10px 22px -10px rgba(245,184,61,.6)}
+
+/* route-tijdlijn: lijn langs alle adressen, genummerde stop per adres */
+.tijdlijn{gap:12px}
+.tijdlijn .item{position:relative;margin-left:30px;border-radius:var(--r);padding:14px;grid-template-columns:auto 1fr auto}
+.tijdlijn .item::before{content:"";position:absolute;left:-19px;top:-13px;bottom:-13px;width:2px;background:linear-gradient(var(--line),var(--line));opacity:.9}
+.tijdlijn .item::after{content:attr(data-nr);position:absolute;left:-31px;top:15px;width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 12.5px/1 var(--display);background:var(--surface);color:var(--accent);border:2px solid var(--accent);box-shadow:0 0 0 4px var(--bg)}
+.tijdlijn .item.done::after{content:"✓";background:var(--ok-btn);border-color:var(--ok-btn);color:#fff}
+.tijdlijn .item.late::after{content:"!";background:var(--bad);border-color:var(--bad);color:#fff}
+.tijdlijn .group-h + .item::before{top:15px}
+.tijdlijn .item:has(+ .group-h)::before,.tijdlijn .item:last-child::before{bottom:auto;height:28px}
+.tijdlijn .item.done{opacity:.82}
+.item .time{font-family:var(--display);font-weight:750;font-size:21px;letter-spacing:-.02em}
+.item .name{font-size:16.5px;font-weight:700}
+.item .price{font-family:var(--display);font-weight:700;font-size:17px}
+.item.late{background:var(--bad-bg);border-color:color-mix(in srgb,var(--bad) 55%,transparent)}
+
+/* week */
+.col{border-radius:var(--r)}
+.col .ch .d{font-family:var(--display);text-transform:none;letter-spacing:-.01em}
+.mini{border-radius:9px;border-left-width:3px}
+
+/* formulieren en vensters */
+.form label{text-transform:none;letter-spacing:0;font-size:13px;font-weight:600}
+.form input,.form select,.form textarea,.search,.filters select,.panel input,.panel select,.auth input{border-radius:var(--r-sm);min-height:44px;background:var(--bg);border:1px solid var(--line);transition:border-color .15s,box-shadow .15s}
+.form input:focus,.form select:focus,.form textarea:focus,.search:focus,.auth input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 25%,transparent)}
+.sheet-bg{background:rgba(4,12,18,.55);-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.sheet{border-radius:22px 22px 0 0;box-shadow:0 -12px 40px -12px rgba(0,0,0,.45);border-top:1px solid var(--edge)}
+.sheet::before{content:"";display:block;width:42px;height:5px;border-radius:3px;background:var(--line);margin:-6px auto 12px}
+@media (min-width:640px){.sheet{border-radius:22px}.sheet::before{display:none}}
+.sheet h3{font-family:var(--display);text-transform:none;letter-spacing:-.015em;font-size:24px;font-weight:750}
+.toast{border-radius:14px;background:var(--surface);color:var(--ink);border:1px solid var(--line);box-shadow:0 14px 30px -12px rgba(0,0,0,.5);font-weight:600}
+
+/* inloggen */
+.auth .card{border-radius:22px;border:1px solid var(--line);box-shadow:0 30px 60px -30px rgba(0,0,0,.6)}
+.auth .card .hd{background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 30%,var(--surface)),var(--surface));color:var(--ink);padding:26px 22px 20px}
+.auth .card .hd h1{font-family:var(--display);text-transform:none;letter-spacing:-.02em;font-size:30px;font-weight:800}
+
+@media (prefers-reduced-motion:reduce){.btn{transition:none}.btn:active{transform:none}}
+
+@media (max-width:640px){
+  .tijdlijn .item{grid-template-columns:1fr auto;grid-template-areas:"ord side" "main main";gap:8px 10px}
+  .tijdlijn .item .ord{grid-area:ord;flex-direction:row;gap:6px;align-items:center}
+  .tijdlijn .item .time{text-align:left;min-width:0;margin-right:4px}
+  .tijdlijn .item .ord .iconbtn{width:34px;height:34px;min-height:34px}
+  .tijdlijn .item .main{grid-area:main}
+  .tijdlijn .item .side{grid-area:side;flex-direction:row;align-items:center;gap:8px}
+  .tijdlijn .item .row-acts .btn{flex:0 0 auto}
+}
 </style>
 </head>
 <body>
@@ -335,7 +464,7 @@ nav.tabs svg{width:22px;height:22px}
 <header class="top">
   <div class="wrap">
     <div class="brand">
-      <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
+      <svg class="logo" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><defs><linearGradient id="glasG" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9fe3f5"/><stop offset="1" stop-color="#3fa9cf"/></linearGradient></defs><rect x="2" y="2" width="30" height="30" rx="9" fill="url(#glasG)" opacity=".18"/><path d="M8 25 C 13 17, 21 17, 26 25" fill="none" stroke="url(#glasG)" stroke-width="2.2" stroke-linecap="round" opacity=".9"/><rect x="7" y="8" width="20" height="4.2" rx="2.1" fill="#f5b83d"/><rect x="15.6" y="12" width="2.8" height="11" rx="1.4" fill="currentColor"/></svg>
       <div><h1>Zijlstra<span class="hm"> Planning</span></h1><small id="whoami"></small></div>
     </div>
     <div class="desk-tabs" role="tablist">
@@ -375,7 +504,7 @@ nav.tabs svg{width:22px;height:22px}
     <div id="dayView">
       <div class="daystrip" id="dayStrip"></div>
       <div class="bar" style="margin-top:12px"><strong id="dayTitle"></strong><span class="nav"><span class="sub" id="dayTotal"></span><span class="wx" id="dayWx"></span><button class="btn small" type="button" id="routeBtn" hidden>⚡ Snelste route</button><button class="btn yellow small" type="button" id="shiftBtn" hidden>🌧 Dag verzetten</button><button class="btn wa small" type="button" id="remindBtn" hidden>💬 Herinneringen</button><button class="btn ghost small" type="button" id="copyDayBtn">📋 Kopieer dagroute</button><button class="btn ghost small" type="button" id="closeDayBtn">Dagafsluiting</button><a class="btn ghost small" id="mapsDay" target="_blank" rel="noopener" hidden>Route in Maps</a></span></div>
-      <div class="list" id="dayList" style="margin-top:8px"></div>
+      <div class="list tijdlijn" id="dayList" style="margin-top:8px"></div>
     </div>
     <div id="weekView" hidden>
       <div class="sub" style="margin-bottom:8px">Sleep een beurt naar een andere dag om te verplaatsen. Op de telefoon: tik op de beurt → Verplaatsen.</div>
@@ -449,7 +578,7 @@ nav.tabs svg{width:22px;height:22px}
 <header class="top">
   <div class="wrap">
     <div class="brand">
-      <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="3" y="4" width="28" height="5" rx="2" fill="#f2b632"/><rect x="15" y="9" width="4" height="22" rx="2" fill="currentColor"/></svg>
+      <svg class="logo" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><defs><linearGradient id="glasG2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9fe3f5"/><stop offset="1" stop-color="#3fa9cf"/></linearGradient></defs><rect x="2" y="2" width="30" height="30" rx="9" fill="url(#glasG2)" opacity=".18"/><path d="M8 25 C 13 17, 21 17, 26 25" fill="none" stroke="url(#glasG2)" stroke-width="2.2" stroke-linecap="round" opacity=".9"/><rect x="7" y="8" width="20" height="4.2" rx="2.1" fill="#f5b83d"/><rect x="15.6" y="12" width="2.8" height="11" rx="1.4" fill="currentColor"/></svg>
       <div><h1>Mijn route</h1><small id="crewWho"></small></div>
     </div>
     <div class="hdr-acts"><button class="btn ghost small themebtn" type="button" data-theme-toggle aria-label="Licht of donker"><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button><button class="btn ghost small" type="button" id="crewAgenda">📅 Agenda</button><button class="btn ghost small" type="button" data-logout aria-label="Uitloggen">⎋</button></div>
@@ -796,7 +925,7 @@ function beurtCard(b,list){
   const done=b.status==="gedaan", t=today();
   const st=done?(b.betaald?`<span class="pill p-ok">Betaald</span>`:`<span class="pill p-warn">Te betalen</span>`):(b.datum<t?`<span class="pill p-bad">Niet afgevinkt</span>`:`<span class="pill p-plain">Gepland</span>`);
   const idx=list.indexOf(b);
-  return `<div class="item ${done?"done":(b.datum<t?"late":"")}">
+  return `<div class="item ${done?"done":(b.datum<t?"late":"")}" data-nr="${idx+1}">
     <div class="ord"><div class="time">${esc(hm(b.tijd)||"—")}</div>
       <button class="iconbtn" type="button" data-up="${b.id}" ${idx<=0?"disabled":""} aria-label="Eerder in route">↑</button>
       <button class="iconbtn" type="button" data-down="${b.id}" ${idx>=list.length-1?"disabled":""} aria-label="Later in route">↓</button></div>
