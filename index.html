@@ -437,6 +437,14 @@ svg.ico{width:1.05em;height:1.05em;vertical-align:-.17em;margin-right:6px;fill:n
 .rem-rij{flex-wrap:wrap}.rem-rij .main{flex:1 1 100%}.rem-rij .meta{flex-direction:row;width:100%;justify-content:flex-start;gap:8px}
 .rem-alg{display:flex;justify-content:space-between;align-items:center;gap:10px}
 .rem-alg .sub{margin-top:4px}
+
+.laatst-l{display:flex;flex-direction:column;gap:6px;font-size:13.5px;color:var(--muted);margin:2px 0 4px}
+.laatst-uit,.pn-uit,.snel-uit{color:var(--accent);font-weight:600}
+.laatst-uit:empty,.pn-uit:empty,.snel-uit:empty{display:none}
+.pn-velden{display:grid;grid-template-columns:1fr 1fr 92px;gap:8px;width:100%;margin-top:8px}
+.pn-velden label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
+.pn-velden input{min-width:0;width:100%}
+.pn-uit{width:100%;margin-top:4px;font-size:13px}
 </style>
 </head>
 <body>
@@ -886,6 +894,9 @@ function render(){
 // actieve klanten zonder geplande beurt
 const ongepland=()=>S.klanten.filter(k=>k.actief&&!k.volgende_beurt);
 function eersteDatum(k){const b=addDays(today(),1);return eerstMogelijk(b,k)}
+// volgende beurt uit de laatste keer dat de klant geholpen is; al te laat → eerstvolgende mogelijke dag vanaf morgen
+function naLaatst(laatst,k){if(!laatst)return"";const n=volgendeDatum(laatst,k);return n>today()?n:eersteDatum(k)}
+function naLaatstUitleg(laatst,k){if(!laatst)return"";const n=volgendeDatum(laatst,k);return n>today()?"Volgende beurt: "+DNL[parse(n).getDay()]+" "+nice(n).replace(/^\S+ /,""):"Was al aan de beurt op "+nice(n)+"; ingepland op de eerste mogelijke dag."}
 // beurten van eerdere dagen die nog niet zijn afgevinkt
 const nietAfgevinkt=()=>{const t=today();return S.beurten.filter(b=>b.status==="gepland"&&b.datum<t&&(S.rol==="beheerder")).sort((a,b)=>a.datum.localeCompare(b.datum)||hm(a.tijd).localeCompare(hm(b.tijd)))};
 const telLaat=d=>bOn(d).filter(b=>b.status==="gepland"&&b.datum<today()).length;
@@ -904,10 +915,10 @@ function planNieuwSheet(){
   const l=ongepland().filter(k=>!k.laatste_beurt).sort((a,b)=>(a.woonplaats||"").localeCompare(b.woonplaats||"")||(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
   if(!l.length){toast("Alle klanten staan in de planning");return}
   sheet("Startdatum per klant",`
-    <div class="full sub">De datum staat al op de eerstvolgende vaste wasdag van de klant. Pas aan waar nodig en tik op <strong>Inplannen</strong>.</div>
+    <div class="full sub">De datum staat al op de eerstvolgende vaste wasdag van de klant. Weet je wanneer je er de <strong>laatste keer</strong> was? Vul die in bij <strong>Laatst</strong>, dan rekent de app de volgende beurt uit. Tik daarna op <strong>Inplannen</strong>.</div>
     <div class="full list" id="pnRows">${l.map(k=>`<div class="kl" style="flex-wrap:wrap"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))} · ${esc(freqText(k))}</div></div>
-      <div class="meta" style="flex-direction:row;align-items:center;gap:6px"><input type="date" data-pn-d="${k.id}" value="${eersteDatum(k)}" aria-label="Startdatum ${esc(k.naam)}"><input type="time" data-pn-t="${k.id}" value="09:00" step="300" aria-label="Tijd ${esc(k.naam)}"></div></div>`).join("")}</div>
-  `,{saveLabel:"Inplannen",onSave:async()=>{
+      <div class="pn-velden"><label>Laatst<input type="date" data-pn-l="${k.id}" max="${today()}" aria-label="Laatst geholpen ${esc(k.naam)}"></label><label>Volgende<input type="date" data-pn-d="${k.id}" value="${eersteDatum(k)}" aria-label="Startdatum ${esc(k.naam)}"></label><label>Tijd<input type="time" data-pn-t="${k.id}" value="09:00" step="300" aria-label="Tijd ${esc(k.naam)}"></label></div><div class="sub pn-uit" data-pn-u="${k.id}"></div></div>`).join("")}</div>
+  `,{extra:()=>{$$("[data-pn-l]").forEach(x=>x.addEventListener("change",()=>{const k=S.kById[x.dataset.pnL];if(!k||!x.value)return;$(`[data-pn-d="${k.id}"]`).value=naLaatst(x.value,k);$(`[data-pn-u="${k.id}"]`).textContent=naLaatstUitleg(x.value,k)}))},saveLabel:"Inplannen",onSave:async()=>{
     const rows=l.map(k=>({klant_id:k.id,datum:($(`[data-pn-d="${k.id}"]`).value||""),tijd:($(`[data-pn-t="${k.id}"]`).value||null),bedrag:+k.prijs||0})).filter(r=>r.datum);
     if(!rows.length){toast("Vul minstens één datum in");return false}
     const per={};rows.forEach(r=>{r.volgorde=(per[r.datum]=(per[r.datum]??bOn(r.datum).length))+0;per[r.datum]++});
@@ -1135,6 +1146,7 @@ function klantForm(id){
       <div id="ondList" class="list" style="gap:6px">${ondHtml()}</div>
       <div class="chips" style="margin-top:6px"><button type="button" id="ondAdd">+ Onderdeel</button>${["Voorkant","Achterkant","Zijkant","Dakramen","Serre","Kozijnen"].map(x=>`<button type="button" data-ondq="${x}">+ ${x}</button>`).join("")}</div></div>
     ${!id||(!k.volgende_beurt&&!k.laatste_beurt)?`<div class="full startbox"><div class="sub" style="margin-bottom:6px"><strong>Startdatum ronde</strong>: de eerste beurt. Daarna plant de app elke volgende beurt vanzelf in.</div>
+      <label class="laatst-l">Weet je wanneer je er de laatste keer was? Vul dat in, dan rekent de app de startdatum uit.<input type="date" id="f-laatst" max="${today()}" aria-label="Laatst geholpen"></label><div class="sub laatst-uit" id="f-laatst-uit"></div>
       <div class="filters"><input type="date" id="f-start" value="${esc(eersteDatum(k))}" aria-label="Startdatum"><input type="time" id="f-starttijd" value="09:00" step="300" aria-label="Tijd"><label class="chk sub" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="f-geenstart"> nog niet inplannen</label></div></div>`:""}
     <label class="full">Notitie (zie je bij elke beurt)<textarea id="f-not" name="notitie" rows="2" placeholder="Bijv. achterom, poort zit op slot">${esc(k.notitie)}</textarea></label>
     <div class="full chips" id="noteChips">${NOTE_CHIPS.map(c=>`<button type="button" data-chip="${esc(c)}">+ ${esc(c)}</button>`).join("")}</div>
@@ -1184,7 +1196,9 @@ function klantForm(id){
       const sd=$("#f-start");if(sd){let zelf=false;sd.addEventListener("input",()=>{zelf=true});
         const herbereken=()=>{if(zelf)return;const tmp={vaste_maanden:vasteNu(),...maandNu(),pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value)};sd.value=eersteDatum(tmp)};
         ["#fDagen","#fPauze","#fVaste"].forEach(q=>{const e=$(q);if(e)e.addEventListener("change",herbereken)});$$("[data-fm],[data-preset],[data-keer],#fWinter,#fWinter2,#fNoPauze").forEach(x=>x.addEventListener("click",()=>setTimeout(herbereken,0)));$("#f-keerstart").addEventListener("change",()=>setTimeout(herbereken,0));sd.addEventListener("herbereken",()=>setTimeout(()=>{herbereken();maandUitleg()},0));
-        $("#f-geenstart").onchange=e=>{sd.disabled=e.target.checked;$("#f-starttijd").disabled=e.target.checked};}
+        $("#f-geenstart").onchange=e=>{sd.disabled=e.target.checked;$("#f-starttijd").disabled=e.target.checked};
+        const la=$("#f-laatst");const vanLaatst=()=>{if(!la.value){$("#f-laatst-uit").textContent="";return}const tmp={interval_weken:+($("#sf [name=interval_weken]")||{}).value||6,vaste_maanden:vasteNu(),...maandNu(),pauze_maanden:fm==="weken"?$$("#fPauze input:checked").map(x=>+x.value):[],voorkeur_dagen:$$("#fDagen input:checked").map(x=>+x.value)};sd.value=naLaatst(la.value,tmp);zelf=true;$("#f-laatst-uit").textContent=naLaatstUitleg(la.value,tmp)};
+        la.addEventListener("change",vanLaatst);["#fDagen","#fPauze","#fVaste","#sf [name=interval_weken]","#f-im","#f-mw","#f-md"].forEach(q=>{const e=$(q);if(e)e.addEventListener("change",()=>setTimeout(()=>{if(la.value)vanLaatst()},0))});$$("[data-fm],[data-preset],[data-keer],#fWinter,#fWinter2,#fNoPauze").forEach(x=>x.addEventListener("click",()=>setTimeout(()=>{if(la.value)vanLaatst()},0)));}
       const syncPrice=()=>{if(ond.some(o=>String(o.naam).trim())){const tot=ond.reduce((t,o)=>t+(Number(String(o.prijs).replace(",","."))||0),0);$("#f-prijs").value=tot.toFixed(2)}};
       const redraw=()=>{$("#ondList").innerHTML=ondHtml();syncPrice()};
       $("#ondList").addEventListener("input",e=>{const a=e.target.dataset;if(a.on!==undefined)ond[+a.on].naam=e.target.value;if(a.op!==undefined){ond[+a.op].prijs=e.target.value;syncPrice()}});
@@ -2301,7 +2315,7 @@ async function renderMws(){
 const SNEL_KEY="zs-snel-concept";
 const STOPS={"":"Geen winterstop","12,1,2":"Dec t/m feb","11,12,1,2,3":"Nov t/m mrt","12,1":"Dec t/m jan"};
 let snel=[];
-function snelLeeg(prev){return{naam:"",adres:"",postcode:"",woonplaats:prev?prev.woonplaats:"",telefoon:"",prijs:prev?prev.prijs:"",weken:prev?prev.weken:"6",dagen:prev?prev.dagen.slice():[],stop:prev?prev.stop:"",start:prev?prev.start:"",notitie:"",zakelijk:false,punt:null}}
+function snelLeeg(prev){return{naam:"",adres:"",postcode:"",woonplaats:prev?prev.woonplaats:"",telefoon:"",prijs:prev?prev.prijs:"",weken:prev?prev.weken:"6",dagen:prev?prev.dagen.slice():[],stop:prev?prev.stop:"",start:prev?prev.start:"",laatst:"",notitie:"",zakelijk:false,punt:null}}
 function snelBewaar(){try{localStorage.setItem(SNEL_KEY,JSON.stringify(snel))}catch(e){}}
 function snelLaad(){try{const x=JSON.parse(localStorage.getItem(SNEL_KEY)||"null");if(Array.isArray(x)&&x.length)return x}catch(e){}return null}
 function snelKaart(r,i){
@@ -2317,7 +2331,9 @@ function snelKaart(r,i){
       <label>Hoe vaak<select data-f="weken">${[2,3,4,5,6,8,10,12,13].map(n=>`<option value="${n}" ${String(r.weken)===String(n)?"selected":""}>elke ${n} weken</option>`).join("")}${[1,2,3,4].map(n=>`<option value="k${n}" ${r.weken==="k"+n?"selected":""}>${n}× per jaar</option>`).join("")}</select></label>
       <label>Winterstop<select data-f="stop">${Object.entries(STOPS).map(([v,l])=>`<option value="${v}" ${r.stop===v?"selected":""}>${l}</option>`).join("")}</select></label>
       <div class="full"><div class="sub" style="margin-bottom:4px">Vaste wasdag</div><div class="chips">${DAGK.map((x,n)=>`<button type="button" class="dagchip" data-dag="${n+1}" aria-pressed="${r.dagen.includes(n+1)}">${x}</button>`).join("")}</div></div>
+      <label>Laatst geholpen<input data-f="laatst" type="date" max="${today()}" value="${esc(r.laatst||"")}"></label>
       <label>Eerste beurt<input data-f="start" type="date" value="${esc(r.start)}"></label>
+      <div class="full sub snel-uit"></div>
       <label class="chk" style="align-self:end"><input data-f="zakelijk" type="checkbox" ${r.zakelijk?"checked":""}> Zakelijk</label>
       <label class="full">Notitie<input data-f="notitie" value="${esc(r.notitie)}" placeholder="Achterom, poort op slot …"></label>
     </div></div>`;
@@ -2327,7 +2343,7 @@ function renderSnel(){
   if(!snel.length)snel=snelLaad()||[snelLeeg()];
   const plaatsen=[...new Set(S.klanten.map(k=>k.woonplaats).concat(snel.map(r=>r.woonplaats)).filter(Boolean))].sort();
   box.innerHTML=`
-    <div class="sub">Vul per klant in wat je weet; alleen de naam is verplicht. <strong>+ Volgende klant</strong> neemt woonplaats, prijs, ronde, wasdag en eerste beurt van de vorige over. Wat je invult blijft bewaard tot je opslaat.</div>
+    <div class="sub">Vul per klant in wat je weet; alleen de naam is verplicht. Vul je <strong>Laatst geholpen</strong> in, dan rekent de app de eerste beurt zelf uit. <strong>+ Volgende klant</strong> neemt woonplaats, prijs, ronde, wasdag en eerste beurt van de vorige over. Wat je invult blijft bewaard tot je opslaat.</div>
     <datalist id="snelPlaatsen">${plaatsen.map(p=>`<option value="${esc(p)}">`).join("")}</datalist>
     <div id="snelLijst" class="list">${snel.map(snelKaart).join("")}</div>
     <div class="snel-acties"><button class="btn ghost" type="button" id="snelNog">+ Volgende klant</button><button class="btn" type="button" id="snelOpslaan">Alles opslaan (${snel.filter(r=>r.naam.trim()).length})</button></div>
@@ -2336,9 +2352,10 @@ function renderSnel(){
   const tel=()=>{const b=$("#snelOpslaan");if(b)b.textContent=`Alles opslaan (${snel.filter(r=>r.naam.trim()).length})`};
   lijst.addEventListener("input",e=>{const k=e.target.closest("[data-snel]");const f=e.target.dataset.f;if(!k||!f)return;const r=snel[+k.dataset.snel];
     r[f]=e.target.type==="checkbox"?e.target.checked:e.target.value;if(f==="adres")r.punt=null;snelBewaar();tel()});
-  lijst.addEventListener("change",e=>{const k=e.target.closest("[data-snel]");const f=e.target.dataset.f;if(!k||!f)return;snel[+k.dataset.snel][f]=e.target.type==="checkbox"?e.target.checked:e.target.value;snelBewaar()});
+  const snelLaatst=k=>{const r=snel[+k.dataset.snel];if(!r.laatst)return;const tmp={interval_weken:+r.weken||6,pauze_maanden:r.stop?r.stop.split(",").map(Number):[],vaste_maanden:[],voorkeur_dagen:r.dagen};r.start=naLaatst(r.laatst,tmp);k.querySelector('[data-f="start"]').value=r.start;const u=k.querySelector(".snel-uit");if(u)u.textContent=naLaatstUitleg(r.laatst,tmp);snelBewaar()};
+  lijst.addEventListener("change",e=>{const k=e.target.closest("[data-snel]");const f=e.target.dataset.f;if(!k||!f)return;snel[+k.dataset.snel][f]=e.target.type==="checkbox"?e.target.checked:e.target.value;snelBewaar();if(["laatst","weken","stop"].includes(f))snelLaatst(k)});
   lijst.addEventListener("click",e=>{
-    const d=e.target.closest("[data-dag]");if(d){const r=snel[+d.closest("[data-snel]").dataset.snel],n=+d.dataset.dag;r.dagen=r.dagen.includes(n)?r.dagen.filter(x=>x!==n):[...r.dagen,n].sort();d.setAttribute("aria-pressed",r.dagen.includes(n));snelBewaar();return}
+    const d=e.target.closest("[data-dag]");if(d){const r=snel[+d.closest("[data-snel]").dataset.snel],n=+d.dataset.dag;r.dagen=r.dagen.includes(n)?r.dagen.filter(x=>x!==n):[...r.dagen,n].sort();d.setAttribute("aria-pressed",r.dagen.includes(n));snelBewaar();snelLaatst(d.closest("[data-snel]"));return}
     const w=e.target.closest("[data-snel-weg]");if(w){snel.splice(+w.dataset.snelWeg,1);snelBewaar();renderSnel()}
   });
   // adres aanvullen per kaart
@@ -2372,7 +2389,7 @@ async function snelOpslaan(){
 
 /* ---------- import ---------- */
 let importRows=[];
-const COLS={wasdag:["vastewasdag","wasdag","voorkeursdag","dag"],starttijd:["starttijd","tijd"],start:["startdatum","eerstebeurt","start","datum"],winterstop:["winterstop","pauze","pauzemaanden"],vaste:["vastemaanden","maanden"],zakelijk:["zakelijk","zakelijkeklant","bedrijf"],naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
+const COLS={laatst:["laatstgeholpen","laatstekeer","laatst","laatstebeurt","vorigebeurt"],wasdag:["vastewasdag","wasdag","voorkeursdag","dag"],starttijd:["starttijd","tijd"],start:["startdatum","eerstebeurt","start","datum"],winterstop:["winterstop","pauze","pauzemaanden"],vaste:["vastemaanden","maanden"],zakelijk:["zakelijk","zakelijkeklant","bedrijf"],naam:["naam","name","klant","klantnaam","achternaam"],adres:["adres","straat","address","straatnaam"],huisnr:["huisnummer","huisnr","nr","nummer"],postcode:["postcode","zip","pc"],woonplaats:["woonplaats","plaats","stad","city","gemeente"],telefoon:["telefoon","tel","telefoonnummer","mobiel","gsm","phone","06"],email:["email","e-mail","mail"],prijs:["prijs","bedrag","tarief","price","kosten"],interval_weken:["interval","weken","frequentie","elke","ronde","hoevaak"],notitie:["notitie","opmerking","opmerkingen","notes","info"]};
 function normH(h){return String(h||"").toLowerCase().replace(/[^a-z0-9-]/g,"")}
 // eerst exacte kolomnamen, dan "begint met"; elke kolom hoort bij één veld
 function mapHeader(hdr){const m={},used=new Set(),cl=a=>a.replace(/[^a-z0-9-]/g,"");
@@ -2399,7 +2416,7 @@ function rowsToKlanten(rows){
     const vaste=kx?keerMaanden(+kx[1],(st?parse(st):new Date()).getMonth()+1):leesMaanden(g(r,"vaste"));
     return{naam:g(r,"naam"),adres:[g(r,"adres"),g(r,"huisnr")].filter(Boolean).join(" "),postcode:fmtPc(g(r,"postcode")),woonplaats:g(r,"woonplaats"),telefoon:g(r,"telefoon"),email:g(r,"email"),prijs:pr,interval_weken:Math.min(52,Math.max(1,iv)),notitie:g(r,"notitie"),
       voorkeur_dagen:leesDagen(g(r,"wasdag")),vaste_maanden:vaste,pauze_maanden:vaste.length?[]:leesMaanden(g(r,"winterstop")),zakelijk:/^(j|ja|yes|y|x|1|true|zakelijk)$/i.test(g(r,"zakelijk")),
-      _start:leesStartDatum(g(r,"start")),_tijd:leesTijd(g(r,"starttijd"))}}).filter(k=>k.naam&&!/^voorbeeld/i.test(k.naam));
+      _start:st,_laatst:leesStartDatum(g(r,"laatst")),_tijd:leesTijd(g(r,"starttijd"))}}).map(k=>{if(!k._start&&k._laatst)k._start=naLaatst(k._laatst,k);delete k._laatst;return k}).filter(k=>k.naam&&!/^voorbeeld/i.test(k.naam));
 }
 function renderImport(){
   $("#meerBody").innerHTML=`
