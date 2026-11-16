@@ -445,6 +445,20 @@ svg.ico{width:1.05em;height:1.05em;vertical-align:-.17em;margin-right:6px;fill:n
 .pn-velden label{display:flex;flex-direction:column;gap:3px;font-size:12.5px;color:var(--muted)}
 .pn-velden input{min-width:0;width:100%}
 .pn-uit{width:100%;margin-top:4px;font-size:13px}
+
+.pn-plaats{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);margin-bottom:10px;overflow:hidden}
+.pn-plaats>summary{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px;cursor:pointer;list-style:none;font-size:16px}
+.pn-plaats>summary::-webkit-details-marker{display:none}
+.pn-plaats>summary::after{content:"";width:9px;height:9px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);margin-left:4px;flex:none}
+.pn-plaats[open]>summary::after{transform:rotate(-135deg)}
+.pn-plaats[open]>summary{border-bottom:1px solid var(--line)}
+.pn-plaats .list{padding:0 10px 10px}
+.pn-groep{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;font-weight:600;font-size:14px;background:color-mix(in srgb,var(--accent) 9%,transparent)}
+.pn-groep{flex-wrap:wrap}.pn-groep input{max-width:180px;margin-left:auto}
+.pn-straat{background:var(--surface2);font-weight:500;margin-top:6px}
+.pn-tel{color:var(--accent);font-weight:600;white-space:nowrap}
+.pn-som{position:sticky;bottom:0;padding:10px 12px;border-radius:var(--r-sm);background:var(--surface2);font-size:14px}
+.pn-rij .main .sub:empty{display:none}
 </style>
 </head>
 <body>
@@ -911,20 +925,39 @@ function laatSheet(){
     <div class="full list">${l.map(b=>{const k=S.kById[b.klant_id]||{naam:"?"};return `<div class="kl late-row" style="flex-wrap:wrap"><div class="main"><div class="name">${esc(k.naam)}${mwTag(b.medewerker_id)}</div><div class="sub">${DNL[parse(b.datum).getDay()]} ${nice(b.datum).replace(/^\S+ /,"")}${b.tijd?" · "+esc(hm(b.tijd)):""} · ${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))}</div></div>
       <div class="meta" style="flex-direction:row;gap:6px"><button class="btn ok small" type="button" data-laat-klaar="${b.id}">✓ Klaar</button><button class="btn ghost small" type="button" data-laat-niet="${b.id}">Niet gelukt</button></div></div>`}).join("")}</div>`,{});
 }
+function straatVan(a){return String(a||"").replace(/\s+\d.*$/,"").trim()||"Zonder straat"}
 function planNieuwSheet(){
   const l=ongepland().filter(k=>!k.laatste_beurt).sort((a,b)=>(a.woonplaats||"").localeCompare(b.woonplaats||"")||(a.adres||"").localeCompare(b.adres||"","nl",{numeric:true}));
   if(!l.length){toast("Alle klanten staan in de planning");return}
+  const veel=l.length>10;
+  const plaatsen={};l.forEach(k=>{const p=k.woonplaats||"Zonder woonplaats",st=straatVan(k.adres);((plaatsen[p]=plaatsen[p]||{})[st]=plaatsen[p][st]||[]).push(k)});
+  const rij=k=>`<div class="kl pn-rij" style="flex-wrap:wrap"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc(k.naam===k.adres?"":k.adres||"")}${k.naam===k.adres||!k.adres?"":" · "}${esc(freqText(k))}</div></div>
+      <div class="pn-velden"><label>Laatst<input type="date" data-pn-l="${k.id}" max="${today()}" aria-label="Laatst geholpen ${esc(k.naam)}"></label><label>Volgende<input type="date" data-pn-d="${k.id}" value="${veel?"":eersteDatum(k)}" aria-label="Startdatum ${esc(k.naam)}"></label><label>Tijd<input type="time" data-pn-t="${k.id}" value="${veel?"":"09:00"}" step="300" aria-label="Tijd ${esc(k.naam)}"></label></div><div class="sub pn-uit" data-pn-u="${k.id}"></div></div>`;
+  const groep=(p,straten)=>{const ks=Object.values(straten).flat();return `<details class="pn-plaats" ${veel?"":"open"} data-pn-p="${esc(p)}"><summary><span><strong>${esc(p)}</strong> <span class="sub">· ${ks.length} ${ks.length===1?"klant":"klanten"}</span></span><span class="pn-tel sub" data-pn-c="${esc(p)}"></span></summary>
+      <label class="pn-groep">Laatst geweest in heel ${esc(p)}<input type="date" max="${today()}" data-pn-gl="${esc(p)}" aria-label="Laatst geholpen heel ${esc(p)}"></label>
+      ${Object.entries(straten).map(([st,ks])=>`${Object.keys(straten).length>1&&ks.length>1?`<label class="pn-groep pn-straat">${esc(st)} (${ks.length})<input type="date" max="${today()}" data-pn-sl="${esc(p)}|${esc(st)}" aria-label="Laatst geholpen ${esc(st)}"></label>`:""}<div class="list">${ks.map(rij).join("")}</div>`).join("")}
+    </details>`};
   sheet("Startdatum per klant",`
-    <div class="full sub">De datum staat al op de eerstvolgende vaste wasdag van de klant. Weet je wanneer je er de <strong>laatste keer</strong> was? Vul die in bij <strong>Laatst</strong>, dan rekent de app de volgende beurt uit. Tik daarna op <strong>Inplannen</strong>.</div>
-    <div class="full list" id="pnRows">${l.map(k=>`<div class="kl" style="flex-wrap:wrap"><div class="main"><div class="name">${esc(k.naam)}</div><div class="sub">${esc([k.adres,k.woonplaats].filter(Boolean).join(", "))} · ${esc(freqText(k))}</div></div>
-      <div class="pn-velden"><label>Laatst<input type="date" data-pn-l="${k.id}" max="${today()}" aria-label="Laatst geholpen ${esc(k.naam)}"></label><label>Volgende<input type="date" data-pn-d="${k.id}" value="${eersteDatum(k)}" aria-label="Startdatum ${esc(k.naam)}"></label><label>Tijd<input type="time" data-pn-t="${k.id}" value="09:00" step="300" aria-label="Tijd ${esc(k.naam)}"></label></div><div class="sub pn-uit" data-pn-u="${k.id}"></div></div>`).join("")}</div>
-  `,{extra:()=>{$$("[data-pn-l]").forEach(x=>x.addEventListener("change",()=>{const k=S.kById[x.dataset.pnL];if(!k||!x.value)return;$(`[data-pn-d="${k.id}"]`).value=naLaatst(x.value,k);$(`[data-pn-u="${k.id}"]`).textContent=naLaatstUitleg(x.value,k)}))},saveLabel:"Inplannen",onSave:async()=>{
+    <div class="full sub">Vul in wanneer je er de <strong>laatste keer</strong> was. Dat kan per klant, per straat of voor een hele plaats tegelijk. De app rekent dan de volgende beurt uit, met wasdag, hoe vaak en winterstop erbij. Klanten zonder datum blijven gewoon in de lijst staan voor later.</div>
+    <div class="full" id="pnRows">${Object.entries(plaatsen).map(([p,st])=>groep(p,st)).join("")}</div>
+    <div class="full pn-som" id="pnSom"></div>
+  `,{extra:()=>{
+    const vul=(k,laatst)=>{const d=$(`[data-pn-d="${k.id}"]`),u=$(`[data-pn-u="${k.id}"]`),li=$(`[data-pn-l="${k.id}"]`);if(!laatst){return}li.value=laatst;d.value=naLaatst(laatst,k);u.textContent=naLaatstUitleg(laatst,k)};
+    const tel=()=>{const n=l.filter(k=>$(`[data-pn-d="${k.id}"]`).value).length;$("#pnSom").innerHTML=n?`<strong>${n}</strong> van ${l.length} klanten krijgen een datum.`:`Nog geen datums ingevuld.`;
+      Object.entries(plaatsen).forEach(([p,st])=>{const ks=Object.values(st).flat();const m=ks.filter(k=>$(`[data-pn-d="${k.id}"]`).value).length;const c=$(`[data-pn-c="${CSS.escape(p)}"]`);if(c)c.textContent=m?(m===ks.length?"✓ alles":m+" / "+ks.length):""})};
+    $$("[data-pn-l]").forEach(x=>x.addEventListener("change",()=>{const k=S.kById[x.dataset.pnL];if(k&&x.value)vul(k,x.value);tel()}));
+    $$("[data-pn-d]").forEach(x=>x.addEventListener("change",tel));
+    $$("[data-pn-gl]").forEach(x=>x.addEventListener("change",()=>{if(!x.value)return;Object.values(plaatsen[x.dataset.pnGl]).flat().forEach(k=>vul(k,x.value));$$(`[data-pn-sl^="${CSS.escape(x.dataset.pnGl)}|"]`).forEach(y=>y.value=x.value);tel()}));
+    $$("[data-pn-sl]").forEach(x=>x.addEventListener("change",()=>{if(!x.value)return;const [p,st]=x.dataset.pnSl.split("|");(plaatsen[p][st]||[]).forEach(k=>vul(k,x.value));tel()}));
+    tel();
+  },saveLabel:"Inplannen",onSave:async()=>{
     const rows=l.map(k=>({klant_id:k.id,datum:($(`[data-pn-d="${k.id}"]`).value||""),tijd:($(`[data-pn-t="${k.id}"]`).value||null),bedrag:+k.prijs||0})).filter(r=>r.datum);
     if(!rows.length){toast("Vul minstens één datum in");return false}
     const per={};rows.forEach(r=>{r.volgorde=(per[r.datum]=(per[r.datum]??bOn(r.datum).length))+0;per[r.datum]++});
-    const ok=await run(sb.from("beurten").insert(rows),rows.length+(rows.length===1?" klant":" klanten")+" ingepland");
-    if(ok){sel=rows.map(r=>r.datum).sort()[0];mode="dag";tab="planning";setTab();autoRoute(rows.map(r=>r.datum))}
-    return ok?true:false;
+    for(let i=0;i<rows.length;i+=200){const {error}=await sb.from("beurten").insert(rows.slice(i,i+200));if(error){toast("Inplannen mislukt: "+error.message);await reload();return false}}
+    await reload();toast(rows.length+(rows.length===1?" klant":" klanten")+" ingepland");
+    sel=rows.map(r=>r.datum).sort()[0];mode="dag";tab="planning";setTab();autoRoute(rows.map(r=>r.datum));
+    return true;
   }});
 }
 function renderSummary(){
@@ -2416,7 +2449,7 @@ function rowsToKlanten(rows){
     const vaste=kx?keerMaanden(+kx[1],(st?parse(st):new Date()).getMonth()+1):leesMaanden(g(r,"vaste"));
     return{naam:g(r,"naam"),adres:[g(r,"adres"),g(r,"huisnr")].filter(Boolean).join(" "),postcode:fmtPc(g(r,"postcode")),woonplaats:g(r,"woonplaats"),telefoon:g(r,"telefoon"),email:g(r,"email"),prijs:pr,interval_weken:Math.min(52,Math.max(1,iv)),notitie:g(r,"notitie"),
       voorkeur_dagen:leesDagen(g(r,"wasdag")),vaste_maanden:vaste,pauze_maanden:vaste.length?[]:leesMaanden(g(r,"winterstop")),zakelijk:/^(j|ja|yes|y|x|1|true|zakelijk)$/i.test(g(r,"zakelijk")),
-      _start:st,_laatst:leesStartDatum(g(r,"laatst")),_tijd:leesTijd(g(r,"starttijd"))}}).map(k=>{if(!k._start&&k._laatst)k._start=naLaatst(k._laatst,k);delete k._laatst;return k}).filter(k=>k.naam&&!/^voorbeeld/i.test(k.naam));
+      _start:st,_laatst:leesStartDatum(g(r,"laatst")),_tijd:leesTijd(g(r,"starttijd"))}}).map(k=>{if(!k.naam)k.naam=[k.adres,k.adres?"":k.woonplaats].filter(Boolean).join("");if(!k._start&&k._laatst)k._start=naLaatst(k._laatst,k);delete k._laatst;return k}).filter(k=>k.naam&&!/^voorbeeld/i.test(k.naam));
 }
 function renderImport(){
   $("#meerBody").innerHTML=`
