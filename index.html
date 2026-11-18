@@ -1420,9 +1420,21 @@ const PDOK="https://api.pdok.nl/bzk/locatieserver/search/v3_1/";
 function pt(s){const m=String(s||"").match(/POINT\(([-\d.]+)\s+([-\d.]+)\)/);return m?[+m[1],+m[2]]:null}
 function punten(a){const ll=pt(a.centroide_ll),rd=pt(a.centroide_rd);return{lon:ll?ll[0]:null,lat:ll?ll[1]:null,rd_x:rd?rd[0]:null,rd_y:rd?rd[1]:null}}
 // adres opzoeken voor klanten zonder coördinaten (oude klanten, import)
-async function zoekPunt(k){
+async function zoekPunt(k,ruwOk){
+  const plaats=String(k.woonplaats||"").toLowerCase().trim(),m=/(\d+)\s*([a-z]?)\s*(?:[,\/-].*)?$/i.exec(String(k.adres||"")),nr=m?+m[1]:null;
   const q=[k.adres,k.postcode,k.woonplaats].filter(Boolean).join(" ");if(!q)return null;
-  try{const r=await fetch(PDOK+"free?rows=1&fq=type:adres&fl=centroide_ll,centroide_rd,weergavenaam&q="+encodeURIComponent(q));const j=await r.json();const a=j.response&&j.response.docs&&j.response.docs[0];return a?punten(a):null}catch(e){return null}
+  const fl="&fl=centroide_ll,centroide_rd,weergavenaam,woonplaatsnaam,huisnummer,postcode";
+  try{
+    // alleen een adres in de juiste plaats met het juiste huisnummer
+    const r=await fetch(PDOK+"free?rows=10&fq=type:adres"+fl+"&q="+encodeURIComponent(q));const j=await r.json();const docs=(j.response&&j.response.docs)||[];
+    const pc=String(k.postcode||"").replace(/\s/g,"").toUpperCase();
+    const a=docs.find(d=>(!plaats||String(d.woonplaatsnaam||"").toLowerCase()===plaats)&&(nr==null||+d.huisnummer===nr)&&(!pc||String(d.postcode||"").toUpperCase()===pc));
+    if(a)return punten(a);
+    // anders: midden van de plaats, zodat de route in elk geval de goede kant op gaat
+    if(!plaats||!ruwOk)return null;
+    const r2=await fetch(PDOK+"free?rows=1&fq=type:woonplaats&fl=centroide_ll,centroide_rd,weergavenaam&q="+encodeURIComponent(k.woonplaats));const j2=await r2.json();const w=j2.response&&j2.response.docs&&j2.response.docs[0];
+    return w?{...punten(w),ruw:true}:null;
+  }catch(e){return null}
 }
 // luchtfoto (PDOK, gratis) rond het adres, ca. 60 x 60 meter
 function luchtfotoUrl(x,y,m=32,px=480){return "https://service.pdok.nl/hwh/luchtfotorgb/wms/v1_0?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=Actueel_orthoHR&STYLES=&CRS=EPSG%3A28992&FORMAT=image%2Fjpeg&WIDTH="+px+"&HEIGHT="+px+"&BBOX="+[x-m,y-m,x+m,y+m].map(v=>v.toFixed(1)).join("%2C")}
@@ -2537,8 +2549,8 @@ function besteVolgorde(start,pts){
 async function zorgVoorPunten(klanten){
   for(const k of klanten){
     if(k.lat!=null&&k.lon!=null)continue;
-    const p=await zoekPunt(k);
-    if(p&&p.lat!=null){Object.assign(k,p);sb.from("klanten").update(p).eq("id",k.id).then(()=>{})}
+    const p=await zoekPunt(k,true);
+    if(p&&p.lat!=null){const {ruw,...q}=p;if(ruw){k.lat=q.lat;k.lon=q.lon}else{Object.assign(k,q);sb.from("klanten").update(q).eq("id",k.id).then(()=>{})}}
   }
 }
 async function startPunt(){
